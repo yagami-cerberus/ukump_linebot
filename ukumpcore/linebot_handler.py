@@ -41,7 +41,9 @@ def line_error_handler(fn):
         try:
             fn(event)
         except LineMessageError as err:
-            line_bot.reply_message(event.reply_token, TextSendMessage(err.args[0]))
+            print("Error", event)
+            if event.source.type == "user":
+                line_bot.reply_message(event.reply_token, TextSendMessage(err.args[0]))
     return wrapper
 
 
