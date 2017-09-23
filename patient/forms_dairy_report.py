@@ -124,7 +124,7 @@ class DairyReportFormV1(forms.Form):
 
     r8_3 = forms.BooleanField(label="皮膚狀況/傷口", required=False)
     r8_3e = forms.CharField(label="皮膚狀況/傷口/部位", widget=text_input(placeholder="傷口部位", short=True), required=False)
-    r8_3s = forms.IntegerField(label="皮膚狀況/傷口/大小", widget=text_input(placeholder="大小", short=True), required=False)
+    r8_3s = forms.IntegerField(label="皮膚狀況/傷口/大小", widget=number_input(), required=False)
     r8_3l = forms.CharField(label="皮膚狀況/傷口/等級", widget=text_input(placeholder="傷口等級", short=True), required=False)
 
     r8_4 = forms.IntegerField(label="皮膚/異常狀況處理", widget=forms.RadioSelect(choices=(

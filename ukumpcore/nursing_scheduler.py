@@ -41,12 +41,12 @@ def schedule_fixed_schedule_message():
         t_noon = create_datetime(now, NOON)
         t_night = create_datetime(now, NIGHT)
 
-        noon_message = '日報表填寫 %s%s' % (settings.SITE_ROOT, reverse('patient_dairly_report', schedule.patient_id, t_noon.date(), 12))
+        noon_message = '日報表填寫 %s%s' % (settings.SITE_ROOT, reverse('patient_dairly_report', args=(schedule.patient_id, t_noon.date(), 12)))
         EmployeeLineMessageQueue(employee=schedule.employee,
                                  scheduled_at=t_noon,
                                  message=json.dumps({'M': 't', 't': noon_message})).save()
 
-        night_message = '日報表填寫 %s%s' % (settings.SITE_ROOT, reverse('patient_dairly_report', schedule.patient_id, t_noon.date(), 18))
+        night_message = '日報表填寫 %s%s' % (settings.SITE_ROOT, reverse('patient_dairly_report', args=(schedule.patient_id, t_noon.date(), 18)))
         EmployeeLineMessageQueue(employee=schedule.employee,
                                  scheduled_at=t_night,
                                  message=json.dumps({'M': 't', 't': night_message})).save()
@@ -57,7 +57,7 @@ def schedule_fixed_schedule_message():
 
 @transaction.atomic
 def schedule_nursing_question(schedule):
-    schedule.model.objects.filter(pk=schedule.pk).select_for_update(nowait=True)
+    NursingSchedule.objects.filter(pk=schedule.pk).select_for_update(nowait=True)
     items = tuple(schedule.fetch_next_question())
     now = timezone.now().astimezone(fix_tz)
 
@@ -68,7 +68,7 @@ def schedule_nursing_question(schedule):
             "M": "q",
             "s": schedule.pk,
             "p": schedule.patient_id,
-            "qid": schedule.question_id,
+            "qid": it.question_id,
             "sch": scheduled_at.isoformat(),
             "r": True,
             "t": it.question.question,
@@ -82,16 +82,22 @@ def schedule_nursing_question(schedule):
 
 
 @transaction.atomic
+def postback_nursing_begin(employee, session_data, value):
+    pass
+
+
+@transaction.atomic
 def postback_nursing_question(employee, session_data, value):
-    schedule = NursingSchedule.objects.get(pk=session_data['s'])
-    question_id = session_data['qid']
-    routine = session_data['r']
+    schedule = NursingSchedule.objects.get(pk=session_data['data']['s'])
+    question_id = session_data['data']['qid']
+    routine = session_data['data']['r']
+    sch_at = dateparse.parse_datetime(session_data['data']['sch'])
 
     if isinstance(value, int):
         ans_int, ans_str = value, None
     else:
         ans_int, ans_str = None, value
 
-    CareHistory(patient=schedule.patient_id, employee=employee, question_id=question_id,
-                answer_int=ans_int, answer_str=ans_str, routine=routine).save()
-    return schedule, (dateparse.parse_datetime(session_data['sch'] == schedule.flow_control))
+    CareHistory(patient_id=schedule.patient_id, employee=employee, question_id=question_id,
+                scheduled_at=sch_at, answer_int=ans_int, answer_str=ans_str, routine=routine).save()
+    return schedule, (sch_at == schedule.flow_control)

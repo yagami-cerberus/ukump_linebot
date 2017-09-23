@@ -13,7 +13,6 @@ from . import nursing_scheduler
 from patient.models import NursingSchedule, CareDairlyReport
 from employee.models import Profile as Employee, LineMessageQueue as EmployeeLineMessageQueue
 
-from datetime import timedelta
 from linebot.models import MessageEvent, PostbackEvent, LocationMessage, TextMessage
 from binascii import b2a_hex
 import json
@@ -132,10 +131,15 @@ def handle_postback(event):
     if session_data.get("employee_id") == employee.id:
         if resp["T"] == nursing_scheduler.T_CARE_QUESTION_POSTBACK:
             schedule, cont = nursing_scheduler.postback_nursing_question(employee, session_data, value)
+            line_bot.reply_message(event.reply_token, TextSendMessage(text="問題 %s 已歸檔" % session_data['data']['t']))
             if cont:
                 nursing_scheduler.schedule_nursing_question(schedule)
         elif resp["T"] == nursing_scheduler.T_NUSRING_BEGIN:
-            pass
+            if value:
+                schedule = NursingSchedule.objects.get(pk=session_data['data']['s'])
+                nursing_scheduler.schedule_nursing_question(schedule)
+            else:
+                line_bot.reply_message(event.reply_token, TextSendMessage(text="收到拒絕訊息 然後?"))
         else:
             raise LineMessageError("無效的回應訊息 BAD_T")
     else:
@@ -154,7 +158,7 @@ def handle_message(event):
     if event.message.text == '1':
         flush_messages_queue()
     elif event.message.text == '2':
-        flush_today_schedule()
+        nursing_scheduler.schedule_fixed_schedule_message()
     raise LineMessageError(event.source.user_id)
 
 
@@ -169,7 +173,7 @@ def save_care_dairly_report(sender, instance, created, **kwargs):
     if created:
         message = EmployeeLineMessageQueue.pack_text_message('%s 日報表等待審核:\n %s' % (
             instance.patient.name,
-            settings.SITE_ROOT + reverse('patient_dairly_reports', instance.patient_id, instance.report_date, instance.report_period)))
+            settings.SITE_ROOT + reverse('patient_dairly_report', args=(instance.patient_id, instance.report_date, instance.report_period))))
         for employee_id in instance.patient.manager_set.all().values_list('employee_id', flat=True):
             EmployeeLineMessageQueue(
                 employee_id=employee_id,
