@@ -102,12 +102,12 @@ def flush_messages_queue():
         c.execute('select pg_advisory_unlock_all();')
 
 
-def flush_today_schedule():
-    for schedule in NursingSchedule.objects.today_schedule().extra({"localbegin": "LOWER(schedule) AT TIME ZONE 'Asia/Taipei'"}).filter(flow_control=None):
-        data = EmployeeLineMessageQueue.pack_text_message("本日行程\n照護 %s 在 %s 點 %s 分" % (schedule.patient.name, schedule.localbegin.hour, schedule.localbegin.minute))
-        EmployeeLineMessageQueue(employee=schedule.employee, scheduled_at=schedule.schedule.lower - timedelta(minutes=15), message=json.dumps(data)).save()
-        schedule.flow_control = schedule.schedule.lower
-        schedule.save()
+# def flush_today_schedule():
+#     for schedule in NursingSchedule.objects.today_schedule().extra({"localbegin": "LOWER(schedule) AT TIME ZONE 'Asia/Taipei'"}).filter(flow_control=None):
+#         data = EmployeeLineMessageQueue.pack_text_message("本日行程\n照護 %s 在 %s 點 %s 分" % (schedule.patient.name, schedule.localbegin.hour, schedule.localbegin.minute))
+#         EmployeeLineMessageQueue(employee=schedule.employee, scheduled_at=schedule.schedule.lower - timedelta(minutes=15), message=json.dumps(data)).save()
+#         schedule.flow_control = schedule.schedule.lower
+#         schedule.save()
 
 
 @handler.add(PostbackEvent)
@@ -148,7 +148,7 @@ def handle_message(event):
     if event.source.type != "user":
         raise RuntimeError("Unkown line message type: %s (%s)" % (event.source.type, event))
 
-    lfm = {'意見與回饋': 'feedback', '申請加入': 'join', '緊急通報': 'sos'}
+    lfm = {'意見與回饋': 'feedback', '申請加入': 'join', '緊急通報': 'sos', '本日報表': 'dairy_reports'}
     if event.message.text in lfm:
         line_bot.reply_message(event.reply_token, TextSendMessage(settings.SITE_ROOT + '/integrations/linebot/nav/%s' % lfm[event.message.text]))
     if event.message.text == '1':

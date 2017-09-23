@@ -1,6 +1,7 @@
 
 from django.utils import timezone, dateparse
 from django.conf import settings
+from django.urls import reverse
 from django.db import transaction
 from datetime import time, timedelta
 import json
@@ -39,12 +40,16 @@ def schedule_fixed_schedule_message():
         now = timezone.now().astimezone(fix_tz)
         t_noon = create_datetime(now, NOON)
         t_night = create_datetime(now, NIGHT)
+
+        noon_message = '日報表填寫 %s%s' % (settings.SITE_ROOT, reverse('patient_dairly_report', schedule.patient_id, t_noon.date(), 12))
         EmployeeLineMessageQueue(employee=schedule.employee,
                                  scheduled_at=t_noon,
-                                 message=json.dumps({'M': 'u', 'u': settings.SITE_ROOT + '/patient/dairly_report'})).save()
+                                 message=json.dumps({'M': 't', 't': noon_message})).save()
+
+        night_message = '日報表填寫 %s%s' % (settings.SITE_ROOT, reverse('patient_dairly_report', schedule.patient_id, t_noon.date(), 18))
         EmployeeLineMessageQueue(employee=schedule.employee,
                                  scheduled_at=t_night,
-                                 message=json.dumps(message)).save()
+                                 message=json.dumps({'M': 't', 't': night_message})).save()
 
         schedule.flow_control = schedule.schedule.lower
         schedule.save()
