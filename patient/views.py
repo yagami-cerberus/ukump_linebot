@@ -124,8 +124,8 @@ class DairyReport(object):
         if CareDairlyReport.is_manager(employee_id, patient_id):
             # Handle manager view
             report = query.first()
-            form = report.report_form(request.POST)
             if report:
+                form = report.report_form(request.POST)
                 if form.is_valid():
                     report.from_form(form)
                     report.reviewed_by_id = employee_id
