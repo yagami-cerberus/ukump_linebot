@@ -1,16 +1,21 @@
 
-from django.shortcuts import render, redirect
 from django.utils.dateparse import parse_date
 from django.utils.timezone import now, localdate
-from django.contrib import messages
+from django.core.cache import cache
+from django.shortcuts import render, redirect
 from django.db.models import Q
-from django.http import Http404
+from django.contrib import messages
+from django.http import HttpResponse, Http404
 from django.urls import reverse
+import json
 
 from ukumpcore.line_utils import require_lineid
+from ukumpcore import blackbox
 from patient.models import (
     Profile as PatientProfile,
+    Manager as PatientManager,
     NursingSchedule,
+    Guardian,
     CareDairlyReport,
     DEFAULT_REPORT_FORM)
 from employee.models import Profile as EmployeeProfile
@@ -39,15 +44,15 @@ def dairy_reports(request):
 
     employee_id = EmployeeProfile.get_id_from_line_id(line_id)
     if employee_id:
-        pid = NursingSchedule.objects.today_schedule().filter(employee_id=employee_id).values_list('patient_id', flat=True)
-        cond = Q(manager__employee_id=employee_id) | Q(id__in=pid)
+        cond = (Q(id__in=PatientManager.objects.filter(employee_id=employee_id).values_list('patient_id', flat=True)) |
+                Q(id__in=NursingSchedule.objects.today_schedule().filter(employee_id=employee_id).values_list('patient_id', flat=True)))
 
     customer_id = CustomerProfile.get_id_from_line_id(line_id)
     if customer_id:
         if cond:
-            cond = cond | Q(guardian__customer_id=customer_id)
+            cond = cond | Q(id__in=Guardian.objects.filter(customer_id=customer_id).values_list('patient_id', flat=True))
         else:
-            cond = Q(guardian__customer_id=customer_id)
+            cond = Q(id__in=Guardian.objects.filter(customer_id=customer_id).values_list('patient_id', flat=True))
 
     if cond:
         patients = tuple(PatientProfile.objects.filter(cond))
@@ -160,3 +165,22 @@ class DairyReport(object):
                         'form': form, 'patient': PatientProfile.objects.get(pk=patient_id),
                         'mode': 'readonly'})
             raise Http404
+
+
+def dairy_card(request, card):
+    if "HTTP_X_AMZN_TRACE_ID" in request.META:
+        return redirect(request.build_absolute_uri(reverse('patient_card', args=(card,))) + "?token=" + request.GET['token'])
+
+    c = cache.get('_patient_card:%s' % request.GET.get('token'))
+    if not c:
+        raise Http404
+
+    session = json.loads(c)
+    patient = PatientProfile.objects.get(pk=session['p'])
+    date = parse_date(session['d'])
+    reports = patient.caredairlyreport_set.filter(report_date=date)
+    img = blackbox.cards[int(card)](patient, date, reports)
+    resp = HttpResponse(content_type="image/png")
+    resp["Content-Disposition"] = "filename=\"card.png\""
+    img.save(resp, "PNG")
+    return resp

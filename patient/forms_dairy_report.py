@@ -44,35 +44,35 @@ class DairyReportFormV1(forms.Form):
     r1_2 = forms.IntegerField(label="舒張壓", widget=number_input())
     r1_3 = forms.IntegerField(label="脈搏", widget=number_input())
     r1_4 = BooleanField(label="脈搏規律", widget=boolean_radio("規律", "不規律"))
-    r1_5 = forms.IntegerField(label="體溫", widget=number_input())
+    r1_5 = forms.FloatField(label="體溫", widget=number_input("\d*.\d*"))
     r1_6 = forms.IntegerField(label="呼吸", widget=number_input())
     r1_7 = BooleanField(label="呼吸規則", widget=boolean_radio("規則", "不規則"))
 
-    r2_1 = forms.IntegerField(label="意識狀態", widget=forms.RadioSelect(choices=(
-        ("0", "清楚"), ("1", "混亂"), ("2", "嗜睡"), ("3", "反應遲鈍"), ("4", "只對痛有些反應"),
-        ("5", "無反應"), )))
+    # r2_1 = forms.IntegerField(label="意識狀態", widget=forms.RadioSelect(choices=(
+    #     ("0", "清楚"), ("1", "混亂"), ("2", "嗜睡"), ("3", "反應遲鈍"), ("4", "只對痛有些反應"),
+    #     ("5", "無反應"), )))
 
     r3_1 = forms.IntegerField(label="意識情形", widget=forms.RadioSelect(choices=(
-        ("0", "清楚"), ("1", "混亂"), ("2", "嗜睡"), ("3", "反應遲鈍"), ("4", "只對痛有些反應"),
+        ("0", "清楚"), ("1", "混亂"), ("4", "嗜睡"), ("7", "反應遲鈍"), ("2", "只對痛有些反應"),
         ("5", "無反應"), )))
     r3_2 = forms.IntegerField(label="知覺狀況", widget=forms.RadioSelect(choices=(
-        ("0", "正常"), ("1", "幻想"), ("2", "幻聽"), ("3", "錯覺"), ("4", "譫妄"), )))
+        ("0", "正常"), ("1", "幻想"), ("4", "幻聽"), ("7", "錯覺"), ("2", "譫妄"), )))
 
     r4_1 = forms.IntegerField(label="昨晚睡眠_小時", widget=number_input())
     r4_2 = forms.IntegerField(label="午休睡眠_分鐘", widget=number_input())
     r4_3 = forms.IntegerField(label="睡眠品質", widget=forms.RadioSelect(choices=(
-        ("0", "安穩"), ("1", "普通"), ("2", "不安穩"), ("3", "難入睡"), ("4", "失眠"),
-        ("5", "服用鎮定劑"), ("6", "日夜顛倒"), ("7", "無法評估"), )))
+        ("0", "安穩"), ("3", "普通"), ("1", "不安穩"), ("4", "難入睡"), ("7", "失眠"),
+        ("10", "服用鎮定劑"), ("2", "日夜顛倒"), ("5", "無法評估"), )))
     r4_4 = forms.IntegerField(label="行為", widget=forms.RadioSelect(choices=(
-        ("0", "無"), ("1", "遊走"), ("2", "作息混亂"), ("3", "語言攻擊"), ("4", "肢體攻擊"),
-        ("5", "干擾行為"), ("6", "抗拒照護"), ("7", "妄想"), ("8", "幻覺"), ("9", "恐懼或焦慮"),
-        ("10", "憂鬱或負面狀態"), ("11", "自傷行為"), ("12", "重複行為"), ("13", "破壞行為"),
-        ("14", "不適當行為"), ("15", "無法評估"), ("-1", "其他"), )))
+        ("0", "無"), ("1", "遊走"), ("4", "作息混亂"), ("2", "語言攻擊"), ("5", "肢體攻擊"),
+        ("7", "干擾行為"), ("8", "抗拒照護"), ("10", "妄想"), ("13", "幻覺"), ("16", "恐懼或焦慮"),
+        ("19", "憂鬱或負面狀態"), ("11", "自傷行為"), ("22", "重複行為"), ("14", "破壞行為"),
+        ("17", "不適當行為"), ("20", "無法評估"), ("-1", "其他"), )))
     r4_4e = forms.CharField(label="行為/其他", widget=text_input(placeholder="行為/其他"), required=False)
 
     r5_1 = forms.IntegerField(label="情緒", widget=forms.RadioSelect(choices=(
-        ("0", "適當"), ("1", "異常欣快"), ("2", "起伏易變"), ("3", "情緒低落"), ("4", "易怒"),
-        ("5", "無法評估"), ("-1", "其他"), )))
+        ("0", "適當"), ("2", "異常欣快"), ("5", "起伏易變"), ("1", "情緒低落"), ("8", "易怒"),
+        ("11", "無法評估"), ("-1", "其他"), )))
     r5_1e = forms.CharField(label="情緒/其他", widget=text_input(placeholder="情緒/其他"), required=False)
 
     r6_1 = forms.MultipleChoiceField(
@@ -84,7 +84,7 @@ class DairyReportFormV1(forms.Form):
             ("-1", "其他"), ))
     r6_1e = forms.CharField(label="日常活動/其他", widget=text_input(placeholder="情緒/其他"), required=False)
     r6_2 = forms.IntegerField(label="日課表活動/參與狀況", widget=forms.RadioSelect(choices=(
-        ("0", "主動"), ("1", "被動"), ("2", "配合"), ("3", "須引導"), ("4", "反覆異常"), ("5", "拒絕"), )))
+        ("0", "主動"), ("1", "被動"), ("3", "配合"), ("4", "須引導"), ("2", "反覆異常"), ("5", "拒絕"), )))
 
     r7_1 = forms.IntegerField(label="日課飲食", widget=forms.RadioSelect(choices=(
         ("1", "早餐"), ("2", "中餐"), ("3", "晚餐"), )))
@@ -113,7 +113,7 @@ class DairyReportFormV1(forms.Form):
     r7_12e = forms.CharField(label="大便狀況/其他", widget=text_input(placeholder="異常說明"), required=False)
 
     r7_13 = forms.IntegerField(label="用藥狀況", widget=forms.RadioSelect(choices=(
-        ("0", "無須服藥"), ("1", "配合服藥"), ("2", "逾時服藥"), ("3", "拒絕服藥"), ("4", "服藥後嘔吐 (無法補藥)"), )))
+        ("0", "無須服藥"), ("3", "配合服藥"), ("1", "逾時服藥"), ("2", "拒絕服藥"), ("5", "服藥後嘔吐 (無法補藥)"), )))
 
     r8_1 = forms.BooleanField(label="皮膚狀況/正常", required=False)
 

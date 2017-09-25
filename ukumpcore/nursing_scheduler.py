@@ -1,4 +1,6 @@
 
+from django.utils.crypto import get_random_string
+from django.core.cache import cache
 from django.utils import timezone, dateparse
 from django.conf import settings
 from django.urls import reverse
@@ -7,8 +9,9 @@ from datetime import time, timedelta
 import json
 import pytz
 
+from customer.models import LineMessageQueue as CustomerLineMessageQueue
 from employee.models import LineMessageQueue as EmployeeLineMessageQueue
-from patient.models import NursingSchedule, CareHistory
+from patient.models import Profile as Patient, NursingSchedule, CareHistory
 
 fix_tz = pytz.timezone('Etc/GMT-8')
 
@@ -41,15 +44,15 @@ def schedule_fixed_schedule_message():
         t_noon = create_datetime(now, NOON)
         t_night = create_datetime(now, NIGHT)
 
-        noon_message = '日報表填寫 %s%s' % (settings.SITE_ROOT, reverse('patient_dairly_report', args=(schedule.patient_id, t_noon.date(), 12)))
+        noon_url = settings.SITE_ROOT + reverse('patient_dairly_report', args=(schedule.patient_id, t_noon.date(), 12))
         EmployeeLineMessageQueue(employee=schedule.employee,
                                  scheduled_at=t_noon,
-                                 message=json.dumps({'M': 't', 't': noon_message})).save()
+                                 message=json.dumps({'M': 'u', 't': '上午日報表', 'u': (('填寫'), noon_url)})).save()
 
-        night_message = '日報表填寫 %s%s' % (settings.SITE_ROOT, reverse('patient_dairly_report', args=(schedule.patient_id, t_noon.date(), 18)))
+        night_url = settings.SITE_ROOT + reverse('patient_dairly_report', args=(schedule.patient_id, t_noon.date(), 18))
         EmployeeLineMessageQueue(employee=schedule.employee,
                                  scheduled_at=t_night,
-                                 message=json.dumps({'M': 't', 't': night_message})).save()
+                                 message=json.dumps({'M': 'u', 't': '下午日報表', 'u': (('填寫'), night_url)})).save()
 
         schedule.flow_control = schedule.schedule.lower
         schedule.save()
@@ -59,10 +62,16 @@ def schedule_fixed_schedule_message():
 def schedule_nursing_question(schedule):
     NursingSchedule.objects.filter(pk=schedule.pk).select_for_update(nowait=True)
     items = tuple(schedule.fetch_next_question())
-    now = timezone.now().astimezone(fix_tz)
 
+    if not items:
+        EmployeeLineMessageQueue(employee=schedule.employee,
+                                 scheduled_at=schedule.schedule.upper,
+                                 message=json.dumps({'M': 't', 't': '今日 %s 照護行程已結束' % schedule.patient.name})).save()
+        return
+
+    scheduled_at = None
     for it in items:
-        scheduled_at = create_datetime(now, it.scheduled_at)
+        scheduled_at = create_datetime(schedule.flow_control.astimezone(fix_tz), it.scheduled_at)
         message = {
             "T": T_CARE_QUESTION_POSTBACK,
             "M": "q",
@@ -77,13 +86,25 @@ def schedule_nursing_question(schedule):
         EmployeeLineMessageQueue(employee=schedule.employee,
                                  scheduled_at=scheduled_at,
                                  message=json.dumps(message)).save()
+    if scheduled_at:
         schedule.flow_control = scheduled_at
-        schedule.save()
+    else:
+        schedule.flow_control = schedule.schedule.upper
+    schedule.save()
 
 
 @transaction.atomic
 def postback_nursing_begin(employee, session_data, value):
-    pass
+    schedule = NursingSchedule.objects.get(pk=session_data['data']['s'])
+    if value:
+        if schedule.flow_control < schedule.schedule.lower:
+            schedule_nursing_question(schedule)
+    else:
+        for employee in schedule.patient.manager_set.all():
+            EmployeeLineMessageQueue(
+                employee=employee,
+                scheduled_at=timezone.now(),
+                message=json.dumps({'M': 't', 't': '照護員 %s 取消今日對 %s 照護行程' % (employee.name, schedule.patient.name)})).save()
 
 
 @transaction.atomic
@@ -101,3 +122,44 @@ def postback_nursing_question(employee, session_data, value):
     CareHistory(patient_id=schedule.patient_id, employee=employee, question_id=question_id,
                 scheduled_at=sch_at, answer_int=ans_int, answer_str=ans_str, routine=routine).save()
     return schedule, (sch_at == schedule.flow_control)
+
+
+# @transaction.atomic
+# def prepare_dairly_card(patient, date):
+#     reports = patient.caredairlyreport_set.filter(report_date=date)
+#     cards = (blackbox.process_card_1, blackbox.process_card_2, blackbox.process_card_3, blackbox.process_card_4, )
+#     for card in cards:
+#         img = card(patient, date, reports)
+
+
+def prepare_dairly_cards():
+    today = timezone.now().astimezone(fix_tz).date()
+
+    pid = NursingSchedule.objects.today_schedule().values_list('patient_id', flat=True)
+    for patient in Patient.objects.filter(id__in=pid):
+        token = get_random_string(16)
+        cache.set('_patient_card:%s' % token, json.dumps({'p': patient.id, 'd': today.strftime("%Y-%m-%d")}), 259200)
+
+        urlbase = "https://76o5au1sya.execute-api.ap-northeast-1.amazonaws.com/staged/integrations/%%s/?token=%s" % token
+        message = json.dumps({
+            'M': 'c',
+            'alt': '日報比已經可以查閱',
+            'col': [
+                {'url': urlbase % 0,
+                 'text': '生理狀態',
+                 'a': [('u', '詳情', urlbase % 0)]},
+                {'url': urlbase % 1,
+                 'text': '精神狀況',
+                 'a': [('u', '詳情', urlbase % 1)]},
+                {'url': urlbase % 2,
+                 'text': '營養排泄',
+                 'a': [('u', '詳情', urlbase % 2)]},
+                {'url': urlbase % 3,
+                 'text': '活動狀態',
+                 'a': [('u', '詳情', urlbase % 3)]},
+            ]
+        })
+        for guardian in patient.guardian_set.all():
+            CustomerLineMessageQueue(customer_id=guardian.customer_id,
+                                     scheduled_at=timezone.now(),
+                                     message=message).save()

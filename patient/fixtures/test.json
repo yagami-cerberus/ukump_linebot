@@ -1,5 +1,32 @@
 [
     {
+        "model": "auth.User",
+        "pk": 1,
+        "fields": {
+            "username": "U7dc51dd7ed833e4f937118991a18691a",
+            "is_staff": true,
+            "is_superuser": true
+        }
+    },
+    {
+        "model": "auth.User",
+        "pk": 2,
+        "fields": {
+            "username": "Ua6d88b595adfb03b57ff43c53114220c",
+            "is_staff": true,
+            "is_superuser": true
+        }
+    },
+    {
+        "model": "auth.User",
+        "pk": 3,
+        "fields": {
+            "username": "U3275aa3f535d55d6e633a49bba9965ec",
+            "is_staff": true,
+            "is_superuser": true
+        }
+    },
+    {
         "model": "employee.Profile",
         "pk": 1,
         "fields": {

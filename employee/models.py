@@ -8,6 +8,9 @@ class Profile(models.Model):
     class Meta:
         db_table = "employee"
 
+    def __str__(self):
+        return "%i#員工 %s" % (self.id, self.name)
+
     def __repr__(self):
         return "<Employee %i: %s>" % (self.id, self.name)
 
@@ -56,11 +59,14 @@ class LineMessageQueue(models.Model):
     """
     {
         "T": "ECARE",
-        "M": "t"|"q"|"i","u",
+        "M": "t"|"q"|"i"|"u",
         "t": "text message"|"question title",
         "q": [["LABEL1", value], ["LABEL2", value...]]
-        "u": "url"
+        "u": [["LABEL1", url1], ["LABEL2", url2...]]
     }
     """
     scheduled_at = models.DateTimeField()
     queue_index = models.IntegerField(default=1)
+
+    def get_line_ids(self):
+        return self.employee.linebotintegration_set.values_list('lineid', flat=True)

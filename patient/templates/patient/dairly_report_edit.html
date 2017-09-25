@@ -42,16 +42,21 @@ label {
 <script>
     var mode = "{{ mode }}";
     function validate() {
-        return;
-        $("input:invalid").each((index, element) => {
-            switch (element.type) {
-                case "radio":
-                    element.checked = true;
-                    break;
-                default:
-                    $(element).val("1");
-            }
-        });
+        // var $inv = $("input:invalid");
+        // if ($inv.length) {
+        //     alert("請正確填寫欄位");
+        //     location.hash = $inv[0].id
+        // }
+        // return;
+        // $("input:invalid").each((index, element) => {
+        //     switch (element.type) {
+        //         case "radio":
+        //             element.checked = true;
+        //             break;
+        //         default:
+        //             $(element).val("1");
+        //     }
+        // });
     }
 
     $(function() {
@@ -76,7 +81,7 @@ label {
                 {{ message.message }}</div>
             {% endfor %}
         {% endif %}
-        <form method="POST" onsubmit="alert(1);">
+        <form method="POST">
             {% csrf_token %}
             <div><b>生命徵象</b></div>
             <div class="form-inline">
@@ -256,7 +261,7 @@ label {
             <hr />
             <center>
                 {% if mode == "review" %}
-                    <button type="submit" class="btn btn-sm btn-primary" name="action" value="review">
+                    <button type="submit" class="btn btn-sm btn-primary" name="action" value="review" onclick="validate();">
                         {% if reviewed %}
                         修改審核結果z
                         {% else %}
@@ -264,7 +269,7 @@ label {
                         {% endif %}
                     </button>
                 {% elif mode == "edit" %}
-                    <button type="submit" class="btn btn-sm btn-primary" name="action" value="submit">送出a</button>
+                    <button type="submit" class="btn btn-sm btn-primary" name="action" value="submit" onclick="validate();">送出</button>
                 {% endif %}
             </center>
         </form>

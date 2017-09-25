@@ -10,10 +10,11 @@ from django.urls import reverse
 from django.db import connection, transaction
 
 from . import nursing_scheduler
-from patient.models import NursingSchedule, CareDairlyReport
+from patient.models import CareDairlyReport
 from employee.models import Profile as Employee, LineMessageQueue as EmployeeLineMessageQueue
+from customer.models import LineMessageQueue as CustomerLineMessageQueue
 
-from linebot.models import MessageEvent, PostbackEvent, LocationMessage, TextMessage
+from linebot.models import MessageEvent, PostbackEvent, LocationMessage, TextMessage, URITemplateAction
 from binascii import b2a_hex
 import json
 import os
@@ -21,7 +22,7 @@ import os
 from linebot import LineBotApi, WebhookHandler
 from linebot.models import (
     TextSendMessage, PostbackTemplateAction,
-    TemplateSendMessage, ButtonsTemplate,  # PostbackTemplateAction, ConfirmTemplate
+    TemplateSendMessage, ButtonsTemplate, CarouselTemplate, CarouselColumn,  # , ConfirmTemplate
 )
 
 
@@ -51,14 +52,18 @@ def line_error_handler(fn):
 def linebot_handler(request):
     signature = request.META['HTTP_X_LINE_SIGNATURE']
     handler.handle(request.body.decode(), signature)
+    flush_messages_queue()
     return HttpResponse("")
 
 
 @transaction.atomic
 def flush_message(record):
     data = json.loads(record.message)
-    employee_id = record.employee_id
-    line_id = record.employee.linebotintegration_set.first().lineid
+    line_id = record.get_line_ids().first()
+    if not line_id:
+        record.delete()
+        return
+
     message_type = data.pop("M")
 
     if message_type == "q":
@@ -71,6 +76,7 @@ def flush_message(record):
             label,
             json.dumps({"S": session, "T": action_type, "V": value})) for label, value in answers]
 
+        employee_id = record.employee_id
         cache.add('_line_postback:%s' % session, json.dumps({
             "catalog": action_type,
             "employee_id": employee_id,
@@ -84,8 +90,25 @@ def flush_message(record):
         line_bot.push_message(line_id, TextSendMessage(data["t"]))
 
     elif message_type == "u":
-        line_bot.push_message(line_id, TextSendMessage(data["u"]))
-
+        line_actions = [URITemplateAction(label, value) for label, value in answers]
+        line_bot.push_message(line_id, TemplateSendMessage(
+            alt_text=data["t"],
+            template=ButtonsTemplate(text=data["t"], actions=line_actions)))
+    elif message_type == "c":
+        columns = []
+        for col in data['col']:
+            actions = []
+            for a in col['a']:
+                if a[0] == 'u':
+                    actions.append(URITemplateAction(a[1], a[2]))
+            columns.append(CarouselColumn(thumbnail_image_url=col['url'], text=col['text'] or 'NOTEXT', actions=actions))
+        template = TemplateSendMessage(alt_text=data['alt'], template=CarouselTemplate(columns=columns))
+        try:
+            line_bot.push_message(line_id, template)
+        except Exception as e:
+            import IPython
+            IPython.embed()
+            raise
     record.delete()
 
 
@@ -99,16 +122,12 @@ def flush_messages_queue():
         records = EmployeeLineMessageQueue.objects.padding_message()
         for record in records:
             flush_message(record)
+
+        records = CustomerLineMessageQueue.objects.padding_message()
+        for record in records:
+            flush_message(record)
     finally:
         c.execute('select pg_advisory_unlock_all();')
-
-
-# def flush_today_schedule():
-#     for schedule in NursingSchedule.objects.today_schedule().extra({"localbegin": "LOWER(schedule) AT TIME ZONE 'Asia/Taipei'"}).filter(flow_control=None):
-#         data = EmployeeLineMessageQueue.pack_text_message("本日行程\n照護 %s 在 %s 點 %s 分" % (schedule.patient.name, schedule.localbegin.hour, schedule.localbegin.minute))
-#         EmployeeLineMessageQueue(employee=schedule.employee, scheduled_at=schedule.schedule.lower - timedelta(minutes=15), message=json.dumps(data)).save()
-#         schedule.flow_control = schedule.schedule.lower
-#         schedule.save()
 
 
 @handler.add(PostbackEvent)
@@ -137,11 +156,11 @@ def handle_postback(event):
             if cont:
                 nursing_scheduler.schedule_nursing_question(schedule)
         elif resp["T"] == nursing_scheduler.T_NUSRING_BEGIN:
+            nursing_scheduler.postback_nursing_begin(employee, session_data, value)
             if value:
-                schedule = NursingSchedule.objects.get(pk=session_data['data']['s'])
-                nursing_scheduler.schedule_nursing_question(schedule)
+                line_bot.reply_message(event.reply_token, TextSendMessage(text="行程已確認"))
             else:
-                line_bot.reply_message(event.reply_token, TextSendMessage(text="收到拒絕訊息 然後?"))
+                line_bot.reply_message(event.reply_token, TextSendMessage(text="已將行程撤銷訊息轉送至照護經理"))
         else:
             raise LineMessageError("無效的回應訊息 BAD_T")
     else:
@@ -154,13 +173,12 @@ def handle_message(event):
     if event.source.type != "user":
         raise RuntimeError("Unkown line message type: %s (%s)" % (event.source.type, event))
 
-    lfm = {'意見與回饋': 'feedback', '申請加入': 'join', '緊急通報': 'sos', '本日報表': 'dairy_reports'}
-    if event.message.text in lfm:
-        line_bot.reply_message(event.reply_token, TextSendMessage(settings.SITE_ROOT + '/integrations/linebot/nav/%s' % lfm[event.message.text]))
     if event.message.text == '1':
         flush_messages_queue()
     elif event.message.text == '2':
         nursing_scheduler.schedule_fixed_schedule_message()
+    elif event.message.text == '3':
+        nursing_scheduler.prepare_dairly_cards()
     raise LineMessageError(event.source.user_id)
 
 
@@ -173,9 +191,12 @@ def handle_location(event):
 @receiver([signals.post_save], sender=CareDairlyReport)
 def save_care_dairly_report(sender, instance, created, **kwargs):
     if created:
-        message = EmployeeLineMessageQueue.pack_text_message('%s 日報表等待審核:\n %s' % (
-            instance.patient.name,
-            settings.SITE_ROOT + reverse('patient_dairly_report', args=(instance.patient_id, instance.report_date, instance.report_period))))
+        review_url = settings.SITE_ROOT + reverse('patient_dairly_report', args=(instance.patient_id, instance.report_date, instance.report_period))
+        message = json.dumps({
+            'M': 'u',
+            't': '%s 的日報正在等待審核',
+            'u': (('審核', review_url), )
+        })
         for employee_id in instance.patient.manager_set.all().values_list('employee_id', flat=True):
             EmployeeLineMessageQueue(
                 employee_id=employee_id,

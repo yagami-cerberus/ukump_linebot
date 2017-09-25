@@ -1,5 +1,6 @@
 
 from django.utils.crypto import get_random_string
+from django.contrib.auth import login as django_login, get_user_model
 from django.shortcuts import redirect
 from django.core.cache import cache
 from urllib.parse import urlencode, quote
@@ -8,6 +9,8 @@ from django.http import HttpResponse
 from django.urls import reverse
 import http.client
 import json
+
+from . import line_utils
 
 
 LINE_CHANNEL_ID = settings.LINELOGIN_CHANNEL_ID
@@ -19,8 +22,10 @@ LINE_ENDPOINT = 'https://access.line.me/dialog/oauth/weblogin?response_type=code
 def nav(request, label):
     if label == 'join':
         return redirect(reverse('line_association') + '?url=' + quote(request.get_full_path()))
-    elif label == 'dairy_reports':
+    elif label == 'dairy-reports':
         return redirect(reverse('patient_dairly_reports') + '?url=' + quote(request.get_full_path()))
+    elif label == 'dairy-schedule':
+        return redirect(reverse('patient_main'))
     else:
         return HttpResponse(label)
 
@@ -63,3 +68,11 @@ def final(request):
     line_id = json.loads(resp.read().decode())['userId']
     request.session['line_id'] = line_id
     return redirect(url)
+
+
+@line_utils.require_lineid
+def admin_login(request):
+    line_id = request.session['line_id']
+    user = get_user_model().objects.get(username=line_id)
+    django_login(request, user)
+    return redirect("/kami")

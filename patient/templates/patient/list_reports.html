@@ -19,8 +19,10 @@
                 {{ message.message }}</div>
             {% endfor %}
         {% endif %}
+        <h3>日報表</h3>
+        <hr />
         {% for p in patients %}
-            <h3>{{ p.name }}</h3>
+            <h4>{{ p.name }}</h4>
             <div class="container-fluid">
                 {% for report in p.caredairlyreport_set.yesterday %}
                 <div>

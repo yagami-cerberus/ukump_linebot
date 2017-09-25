@@ -13,11 +13,17 @@ class Question(models.Model):
     response_values = ArrayField(models.IntegerField())
     archived = models.BooleanField(null=False, default=False)
 
+    def __str__(self):
+        return "%i#問題 %s" % (self.id, self.question)
+
 
 class Course(models.Model):
     class Meta:
         db_table = "care_course"
     name = models.TextField()
+
+    def __str__(self):
+        return "%i#課程 %s" % (self.id, self.name)
 
 
 class CourseItem(models.Model):
@@ -28,3 +34,6 @@ class CourseItem(models.Model):
     question = models.ForeignKey(Question)
     table = models.ForeignKey(Course)
     scheduled_at = models.TimeField()
+
+    def __str__(self):
+        return "%i#課程項目 %s (%s)" % (self.id, self.question.question, self.scheduled_at)

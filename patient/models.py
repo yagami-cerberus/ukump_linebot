@@ -42,10 +42,15 @@ class Profile(models.Model):
     def today_courses(self):
         return self.course_schedule.extra(where=("(weekly_mask & 1 << EXTRACT(DOW FROM current_timestamp AT TIME ZONE 'Asia/Taipei')::int) > 0", ))
 
+    def __str__(self):
+        return "%i#病患 %s" % (self.id, self.name)
+
 
 class Guardian(models.Model):
     class Meta:
         db_table = "patient_guardian"
+        unique_together = ('patient', 'customer')
+
     patient = models.ForeignKey(Profile)
     customer = models.ForeignKey("customer.Profile")
     relation = models.TextField(null=True)
@@ -54,9 +59,11 @@ class Guardian(models.Model):
 class Manager(models.Model):
     class Meta:
         db_table = "patient_manager"
+        unique_together = ('patient', 'employee')
 
     patient = models.ForeignKey(Profile)
     employee = models.ForeignKey("employee.Profile")
+    relation = models.TextField()
 
 
 class CourseSchedule(models.Model):
@@ -91,8 +98,8 @@ class NursingSchedule(models.Model):
     def fetch_next_question(self):
         courses_id = self.patient.today_courses().values_list('table_id', flat=True)
         items = CourseItem.objects.filter(table_id__in=courses_id).extra(
-            select={'timestamp': "((current_timestamp AT TIME ZONE 'Asia/Taipei')::Date + care_course_item.scheduled_at)"},
-            where=("(current_timestamp AT TIME ZONE 'Asia/Taipei')::Date + care_course_item.scheduled_at >= (SELECT flow_control FROM patient_nursing_schedule WHERE id = %i)" % self.id,)
+            where=("care_course_item.scheduled_at > (SELECT (flow_control AT TIME ZONE 'Asia/Taipei')::Time FROM patient_nursing_schedule WHERE id = %i)" % self.id,
+                   "care_course_item.scheduled_at <= (SELECT (UPPER(schedule) AT TIME ZONE 'Asia/Taipei')::Time FROM patient_nursing_schedule WHERE id = %i)" % self.id)
         ).select_related("question").order_by('scheduled_at')
         t = None
         for it in items:
@@ -174,4 +181,3 @@ class CareHistory(models.Model):
     employee = models.ForeignKey("employee.Profile", related_name='+', null=True)
     scheduled_at = models.DateField()
     answered_at = models.DateTimeField(auto_now_add=True)
-
