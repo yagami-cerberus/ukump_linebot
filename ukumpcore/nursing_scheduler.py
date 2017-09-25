@@ -10,7 +10,7 @@ import json
 import pytz
 
 from customer.models import LineMessageQueue as CustomerLineMessageQueue
-from employee.models import LineMessageQueue as EmployeeLineMessageQueue
+from employee.models import Profile as Employee, LineMessageQueue as EmployeeLineMessageQueue
 from patient.models import Profile as Patient, NursingSchedule, CareHistory
 
 fix_tz = pytz.timezone('Etc/GMT-8')
@@ -40,21 +40,7 @@ def schedule_fixed_schedule_message():
                                  scheduled_at=schedule.schedule.lower - timedelta(minutes=15),
                                  message=json.dumps(message)).save()
 
-        now = timezone.now().astimezone(fix_tz)
-        t_noon = create_datetime(now, NOON)
-        t_night = create_datetime(now, NIGHT)
-
-        noon_url = settings.SITE_ROOT + reverse('patient_dairly_report', args=(schedule.patient_id, t_noon.date(), 12))
-        EmployeeLineMessageQueue(employee=schedule.employee,
-                                 scheduled_at=t_noon,
-                                 message=json.dumps({'M': 'u', 't': '上午日報表', 'u': (('填寫'), noon_url)})).save()
-
-        night_url = settings.SITE_ROOT + reverse('patient_dairly_report', args=(schedule.patient_id, t_noon.date(), 18))
-        EmployeeLineMessageQueue(employee=schedule.employee,
-                                 scheduled_at=t_night,
-                                 message=json.dumps({'M': 'u', 't': '下午日報表', 'u': (('填寫'), night_url)})).save()
-
-        schedule.flow_control = schedule.schedule.lower
+        schedule.flow_control = schedule.schedule.lower - timedelta(minutes=15)
         schedule.save()
 
 
@@ -98,9 +84,22 @@ def postback_nursing_begin(employee, session_data, value):
     schedule = NursingSchedule.objects.get(pk=session_data['data']['s'])
     if value:
         if schedule.flow_control < schedule.schedule.lower:
+            now = timezone.now().astimezone(fix_tz)
+            t_noon = create_datetime(now, NOON)
+            t_night = create_datetime(now, NIGHT)
+
+            noon_url = settings.SITE_ROOT + reverse('patient_dairly_report', args=(schedule.patient_id, t_noon.date(), 12))
+            EmployeeLineMessageQueue(employee=schedule.employee,
+                                     scheduled_at=t_noon,
+                                     message=json.dumps({'M': 'u', 't': '上午日報表', 'u': (('填寫', noon_url), )})).save()
+
+            night_url = settings.SITE_ROOT + reverse('patient_dairly_report', args=(schedule.patient_id, t_noon.date(), 18))
+            EmployeeLineMessageQueue(employee=schedule.employee,
+                                     scheduled_at=t_night,
+                                     message=json.dumps({'M': 'u', 't': '下午日報表', 'u': (('填寫', night_url), )})).save()
             schedule_nursing_question(schedule)
     else:
-        for employee in schedule.patient.manager_set.all():
+        for employee in Employee.objects.filter(manager__patient=schedule.patient, manager__relation="照護經理"):
             EmployeeLineMessageQueue(
                 employee=employee,
                 scheduled_at=timezone.now(),
@@ -124,14 +123,6 @@ def postback_nursing_question(employee, session_data, value):
     return schedule, (sch_at == schedule.flow_control)
 
 
-# @transaction.atomic
-# def prepare_dairly_card(patient, date):
-#     reports = patient.caredairlyreport_set.filter(report_date=date)
-#     cards = (blackbox.process_card_1, blackbox.process_card_2, blackbox.process_card_3, blackbox.process_card_4, )
-#     for card in cards:
-#         img = card(patient, date, reports)
-
-
 def prepare_dairly_cards():
     today = timezone.now().astimezone(fix_tz).date()
 
@@ -143,7 +134,7 @@ def prepare_dairly_cards():
         urlbase = "https://76o5au1sya.execute-api.ap-northeast-1.amazonaws.com/staged/integrations/%%s/?token=%s" % token
         message = json.dumps({
             'M': 'c',
-            'alt': '日報比已經可以查閱',
+            'alt': '日報表已經可以查閱',
             'col': [
                 {'url': urlbase % 0,
                  'text': '生理狀態',

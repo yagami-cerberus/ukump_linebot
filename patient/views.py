@@ -124,11 +124,20 @@ class DairyReport(object):
         if CareDairlyReport.is_manager(employee_id, patient_id):
             # Handle manager view
             report = query.first()
-            if report and report.reviewed_by_id is None:
-                report.reviewed_by_id = employee_id
-                report.save()
-                messages.info(request, '%s 審核已完成' % report.patient.name)
-                return redirect(reverse('patient_dairly_reports'))
+            form = report.report_form(request.POST)
+            if report:
+                if form.is_valid():
+                    report.from_form(form)
+                    report.reviewed_by_id = employee_id
+                    report.save()
+                    messages.info(request, '%s 審核已完成' % report.patient.name)
+                    return redirect(reverse('patient_dairly_reports'))
+                else:
+                    messages.error(request, '欄位未填寫 %s' % form.errors)
+                    return render(request, 'patient/dairly_report_edit.html', {
+                        'date': report_date,
+                        'form': form, 'patient': PatientProfile.objects.get(pk=patient_id),
+                        'mode': 'readonly'})
 
         if CareDairlyReport.is_nurse(employee_id, patient_id, report_date):
             report = query.first()

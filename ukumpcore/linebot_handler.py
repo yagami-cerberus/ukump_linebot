@@ -90,7 +90,7 @@ def flush_message(record):
         line_bot.push_message(line_id, TextSendMessage(data["t"]))
 
     elif message_type == "u":
-        line_actions = [URITemplateAction(label, value) for label, value in answers]
+        line_actions = [URITemplateAction(label, value) for label, value in data["u"]]
         line_bot.push_message(line_id, TemplateSendMessage(
             alt_text=data["t"],
             template=ButtonsTemplate(text=data["t"], actions=line_actions)))
@@ -103,15 +103,11 @@ def flush_message(record):
                     actions.append(URITemplateAction(a[1], a[2]))
             columns.append(CarouselColumn(thumbnail_image_url=col['url'], text=col['text'] or 'NOTEXT', actions=actions))
         template = TemplateSendMessage(alt_text=data['alt'], template=CarouselTemplate(columns=columns))
-        try:
-            line_bot.push_message(line_id, template)
-        except Exception as e:
-            import IPython
-            IPython.embed()
-            raise
+        line_bot.push_message(line_id, template)
     record.delete()
 
 
+# http://li1686-24.members.linode.com:8000/patient/card/3/?token=YO09P6uvhtVQQOXP
 def flush_messages_queue():
     c = connection.cursor()
     c.execute('select pg_try_advisory_lock(105);')
@@ -179,7 +175,8 @@ def handle_message(event):
         nursing_scheduler.schedule_fixed_schedule_message()
     elif event.message.text == '3':
         nursing_scheduler.prepare_dairly_cards()
-    raise LineMessageError(event.source.user_id)
+    else:
+        raise LineMessageError(event.source.user_id)
 
 
 @handler.add(MessageEvent, message=LocationMessage)
@@ -194,7 +191,7 @@ def save_care_dairly_report(sender, instance, created, **kwargs):
         review_url = settings.SITE_ROOT + reverse('patient_dairly_report', args=(instance.patient_id, instance.report_date, instance.report_period))
         message = json.dumps({
             'M': 'u',
-            't': '%s 的日報正在等待審核',
+            't': '%s 的日報正在等待審核' % instance.patient.name,
             'u': (('審核', review_url), )
         })
         for employee_id in instance.patient.manager_set.all().values_list('employee_id', flat=True):
