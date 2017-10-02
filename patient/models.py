@@ -39,6 +39,15 @@ class Profile(models.Model):
     extend = JSONField(null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    customers = models.ManyToManyField(to='customer.Profile',
+                                       through='Guardian',
+                                       through_fields=('patient', 'customer'),
+                                       related_name='patients')
+    managers = models.ManyToManyField(to='employee.Profile',
+                                      through='Manager',
+                                      through_fields=('patient', 'employee'),
+                                      related_name='patients')
+
     def today_courses(self):
         return self.course_schedule.extra(where=("(weekly_mask & 1 << EXTRACT(DOW FROM current_timestamp AT TIME ZONE 'Asia/Taipei')::int) > 0", ))
 

@@ -9,7 +9,7 @@ from django.http import HttpResponse
 from django.urls import reverse
 from django.db import connection, transaction
 
-from . import nursing_scheduler
+from . import linebot_emergency, nursing_scheduler
 from patient.models import CareDairlyReport
 from employee.models import Profile as Employee, LineMessageQueue as EmployeeLineMessageQueue
 from customer.models import LineMessageQueue as CustomerLineMessageQueue
@@ -136,31 +136,35 @@ def handle_postback(event):
 
     session = resp["S"]
     value = resp["V"]
-    cache_data = cache.get('_line_postback:%s' % session)
 
-    if not cache_data:
-        raise LineMessageError("無效的回應訊息 (BAD_S)")
+    if session:
+        cache_data = cache.get('_line_postback:%s' % session)
 
-    session_data = json.loads(cache_data)
-    employee = Employee.objects.filter(linebotintegration__lineid=event.source.user_id).first()
-    # customer_id = None
+        if not cache_data:
+            raise LineMessageError("無效的回應訊息 (BAD_S)")
 
-    if session_data.get("employee_id") == employee.id:
-        if resp["T"] == nursing_scheduler.T_CARE_QUESTION_POSTBACK:
-            schedule, cont = nursing_scheduler.postback_nursing_question(employee, session_data, value)
-            line_bot.reply_message(event.reply_token, TextSendMessage(text="問題 %s 已歸檔" % session_data['data']['t']))
-            if cont:
-                nursing_scheduler.schedule_nursing_question(schedule)
-        elif resp["T"] == nursing_scheduler.T_NUSRING_BEGIN:
-            nursing_scheduler.postback_nursing_begin(employee, session_data, value)
-            if value:
-                line_bot.reply_message(event.reply_token, TextSendMessage(text="行程已確認"))
+        session_data = json.loads(cache_data)
+        employee = Employee.objects.filter(linebotintegration__lineid=event.source.user_id).first()
+        # customer_id = None
+
+        if session_data.get("employee_id") == employee.id:
+            if resp["T"] == nursing_scheduler.T_CARE_QUESTION_POSTBACK:
+                schedule, cont = nursing_scheduler.postback_nursing_question(employee, session_data, value)
+                line_bot.reply_message(event.reply_token, TextSendMessage(text="問題 %s 已歸檔" % session_data['data']['t']))
+                if cont:
+                    nursing_scheduler.schedule_nursing_question(schedule)
+            elif resp["T"] == nursing_scheduler.T_NUSRING_BEGIN:
+                nursing_scheduler.postback_nursing_begin(employee, session_data, value)
+                if value:
+                    line_bot.reply_message(event.reply_token, TextSendMessage(text="行程已確認"))
+                else:
+                    line_bot.reply_message(event.reply_token, TextSendMessage(text="已將行程撤銷訊息轉送至照護經理"))
             else:
-                line_bot.reply_message(event.reply_token, TextSendMessage(text="已將行程撤銷訊息轉送至照護經理"))
+                raise LineMessageError("無效的回應訊息 BAD_T")
         else:
-            raise LineMessageError("無效的回應訊息 BAD_T")
-    else:
-        line_bot.reply_message(event.reply_token, TextSendMessage(text="無效的回應訊息 (C)"))
+            line_bot.reply_message(event.reply_token, TextSendMessage(text="無效的回應訊息 (C)"))
+    elif resp["T"] == "emergency":
+        linebot_emergency.handle_postback(line_bot, event, resp['stage'], value)
 
 
 @handler.add(MessageEvent, message=TextMessage)
@@ -169,7 +173,9 @@ def handle_message(event):
     if event.source.type != "user":
         raise RuntimeError("Unkown line message type: %s (%s)" % (event.source.type, event))
 
-    if event.message.text == '1':
+    if event.message.text == '緊急通報':
+        linebot_emergency.ignition_emergency(line_bot, event)
+    elif event.message.text == '1':
         flush_messages_queue()
     elif event.message.text == '2':
         nursing_scheduler.schedule_fixed_schedule_message()

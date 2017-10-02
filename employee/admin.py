@@ -1,9 +1,11 @@
 from django.contrib import admin
 from django import forms
+
+from ukumpcore.admin import LineMessageQueueAdmin
 from employee import models
 
 
-class PatientForm(forms.ModelForm):
+class EmployeeForm(forms.ModelForm):
     class Meta:
         model = models.Profile
         exclude = ()
@@ -17,7 +19,7 @@ class LineBotIntegrationForm(forms.ModelForm):
         model = models.LineBotIntegration
         exclude = ()
         widgets = {
-            'lineid': forms.TextInput
+            'lineid': forms.TextInput(attrs={"size": "36"})
         }
 
 
@@ -29,6 +31,9 @@ class LineBotIntegrationInline(admin.TabularInline):
 
 @admin.register(models.Profile)
 class EmployeeAdmin(admin.ModelAdmin):
-    form = PatientForm
+    form = EmployeeForm
     inlines = (LineBotIntegrationInline, )
     list_display = ("id", "name", "created_at")
+
+
+admin.register(models.LineMessageQueue, LineMessageQueueAdmin)
