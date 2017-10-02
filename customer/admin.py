@@ -2,6 +2,7 @@
 from django.contrib import admin
 from django import forms
 
+from ukumpcore.admin import LineMessageQueueAdmin
 from customer import models
 
 
@@ -35,3 +36,6 @@ class CustomerAdmin(admin.ModelAdmin):
     form = CustomerForm
     inlines = (LineBotIntegrationInline, )
     list_display = ("id", "name", "created_at")
+
+
+admin.site.register(models.LineMessageQueue, LineMessageQueueAdmin)

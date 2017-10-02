@@ -120,6 +120,9 @@ class NursingSchedule(models.Model):
             else:
                 return
 
+    def __str__(self):
+        return "%i#班表 %s/%s@%s" % (self.id, self.patient, self.employee, self.schedule.lower)
+
 
 class CareDairlyReport(models.Model):
     class Meta:

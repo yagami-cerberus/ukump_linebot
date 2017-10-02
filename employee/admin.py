@@ -36,4 +36,4 @@ class EmployeeAdmin(admin.ModelAdmin):
     list_display = ("id", "name", "created_at")
 
 
-admin.register(models.LineMessageQueue, LineMessageQueueAdmin)
+admin.site.register(models.LineMessageQueue, LineMessageQueueAdmin)
