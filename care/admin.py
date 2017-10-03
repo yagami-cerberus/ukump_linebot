@@ -1,3 +1,14 @@
 from django.contrib import admin
 
-# Register your models here.
+from care import models
+
+
+class CourseItemInline(admin.TabularInline):
+    extra = 1
+    model = models.CourseItem
+
+
+@admin.register(models.Course)
+class CourseAdmin(admin.ModelAdmin):
+    inlines = (CourseItemInline, )
+    list_display = ("id", "name")
