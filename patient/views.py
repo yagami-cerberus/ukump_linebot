@@ -9,17 +9,19 @@ from django.http import HttpResponse, Http404
 from django.urls import reverse
 import json
 
-from ukumpcore.line_utils import require_lineid
+from ukumpcore.linebot_utils import require_lineid
 from ukumpcore import blackbox
 from patient.models import (
-    Profile as PatientProfile,
+    Profile as Patient,
     Manager as PatientManager,
     NursingSchedule,
     Guardian,
     CareDairlyReport,
     DEFAULT_REPORT_FORM)
-from employee.models import Profile as EmployeeProfile
-from customer.models import Profile as CustomerProfile
+from ukumpcore.linebot_utils import get_customer_id_from_lineid, get_employee_id_from_lineid  # get_employee_from_lineid, get_customer_from_lineid
+from employee.models import Profile as Employee
+from customer.models import Profile as Customer
+from care.models import CourseDetail
 
 TIME_12HR = 43200
 
@@ -27,14 +29,32 @@ TIME_12HR = 43200
 @require_lineid
 def dairy_schedule(request):
     line_id = request.session['line_id']
+    if "pid" in request.GET:
+        query = Patient.objects.filter(pk=request.GET['pid'])
+    else:
+        query = Patient.objects.get_queryset()
+
+    date = localdate()
+    employee_id = get_employee_id_from_lineid(line_id)
+    cusomer_id = get_customer_id_from_lineid(line_id)
 
     pid = NursingSchedule.objects.today_schedule().filter(employee__linebotintegration__lineid=line_id).values_list('patient_id', flat=True)
-    patients = PatientProfile.objects.filter(
-        Q(guardian__customer__linebotintegration__lineid=line_id) |
-        Q(manager__employee__linebotintegration__lineid=line_id) |
+    patients = query.filter(
+        Q(guardian__customer_id=cusomer_id) |
+        Q(manager__employee_id=employee_id, manager__relation="照護經理") |
         Q(id__in=pid))
 
-    return render(request, 'patient/list_schedule.html', {"patients": patients})
+    context = []
+    for p in patients:
+        ext = ('("weekly_mask" & %i > 0)' % (1 << date.isoweekday()), )
+        courses = p.course_schedule.extra(where=ext)
+        context.append((p, CourseDetail.objects.filter(table_id__in=courses.values_list('table_id', flat=True))))
+    return render(request, 'patient/list_schedule.html', {"date": date, "patients": context})
+
+
+@require_lineid
+def summary(request, patient_id, catalog):
+    pass
 
 
 @require_lineid
@@ -42,12 +62,12 @@ def dairy_reports(request):
     line_id = request.session['line_id']
     cond = None
 
-    employee_id = EmployeeProfile.get_id_from_line_id(line_id)
+    employee_id = Employee.get_id_from_line_id(line_id)
     if employee_id:
         cond = (Q(id__in=PatientManager.objects.filter(employee_id=employee_id).values_list('patient_id', flat=True)) |
                 Q(id__in=NursingSchedule.objects.today_schedule().filter(employee_id=employee_id).values_list('patient_id', flat=True)))
 
-    customer_id = CustomerProfile.get_id_from_line_id(line_id)
+    customer_id = Customer.get_id_from_line_id(line_id)
     if customer_id:
         if cond:
             cond = cond | Q(id__in=Guardian.objects.filter(customer_id=customer_id).values_list('patient_id', flat=True))
@@ -55,7 +75,7 @@ def dairy_reports(request):
             cond = Q(id__in=Guardian.objects.filter(customer_id=customer_id).values_list('patient_id', flat=True))
 
     if cond:
-        patients = tuple(PatientProfile.objects.filter(cond))
+        patients = tuple(Patient.objects.filter(cond))
     else:
         patients = ()
 
@@ -77,7 +97,7 @@ class DairyReport(object):
 
     @classmethod
     def get(cls, request, line_id, patient_id, report_date, report_period):
-        employee_id = EmployeeProfile.get_id_from_line_id(line_id)
+        employee_id = Employee.get_id_from_line_id(line_id)
         query = CareDairlyReport.objects.filter(patient_id=patient_id, report_date=report_date, report_period=report_period)
 
         if CareDairlyReport.is_manager(employee_id, patient_id):
@@ -86,7 +106,7 @@ class DairyReport(object):
             if report:
                 return render(request, 'patient/dairly_report_edit.html', {
                     'date': report_date,
-                    'form': report.to_form(), 'patient': PatientProfile.objects.get(pk=patient_id),
+                    'form': report.to_form(), 'patient': Patient.objects.get(pk=patient_id),
                     'mode': 'review' if (now() - report.updated_at).seconds < TIME_12HR or not report.reviewed_by_id else 'readonly',
                     'reviewed': report.reviewed_by_id is not None})
 
@@ -95,31 +115,31 @@ class DairyReport(object):
             if report:
                 return render(request, 'patient/dairly_report_edit.html', {
                     'date': report_date,
-                    'form': report.to_form(), 'patient': PatientProfile.objects.get(pk=patient_id),
+                    'form': report.to_form(), 'patient': Patient.objects.get(pk=patient_id),
                     'mode': 'edit' if not report.reviewed_by and (now() - report.created_at).seconds < TIME_12HR else 'readonly'})
             elif report_date == localdate():
                 return render(request, 'patient/dairly_report_edit.html', {
                     'date': report_date,
-                    'form': DEFAULT_REPORT_FORM(), 'patient': PatientProfile.objects.get(pk=patient_id),
+                    'form': DEFAULT_REPORT_FORM(), 'patient': Patient.objects.get(pk=patient_id),
                     'mode': 'edit'})
             else:
                 raise Http404
 
-        customer_id = CustomerProfile.get_id_from_line_id(line_id)
+        customer_id = Customer.get_id_from_line_id(line_id)
         if CareDairlyReport.is_guardian(customer_id, patient_id):
             # Handle customer view
             report = query.first()
             if report:
                 return render(request, 'patient/dairly_report_edit.html', {
                     'date': report_date,
-                    'form': report.to_form(), 'patient': PatientProfile.objects.get(pk=patient_id),
+                    'form': report.to_form(), 'patient': Patient.objects.get(pk=patient_id),
                     'mode': 'readonly'})
         raise Http404
 
     @classmethod
     def post(cls, request, line_id, patient_id, report_date, report_period):
         query = CareDairlyReport.objects.filter(patient_id=patient_id, report_date=report_date, report_period=report_period)
-        employee_id = EmployeeProfile.get_id_from_line_id(line_id)
+        employee_id = Employee.get_id_from_line_id(line_id)
 
         if CareDairlyReport.is_manager(employee_id, patient_id):
             # Handle manager view
@@ -136,7 +156,7 @@ class DairyReport(object):
                     messages.error(request, '欄位未填寫 %s' % form.errors)
                     return render(request, 'patient/dairly_report_edit.html', {
                         'date': report_date,
-                        'form': form, 'patient': PatientProfile.objects.get(pk=patient_id),
+                        'form': form, 'patient': Patient.objects.get(pk=patient_id),
                         'mode': 'readonly'})
 
         if CareDairlyReport.is_nurse(employee_id, patient_id, report_date):
@@ -157,7 +177,7 @@ class DairyReport(object):
                         messages.error(request, '欄位未填寫 %s' % form.errors)
                         return render(request, 'patient/dairly_report_edit.html', {
                             'date': report_date,
-                            'form': form, 'patient': PatientProfile.objects.get(pk=patient_id),
+                            'form': form, 'patient': Patient.objects.get(pk=patient_id),
                             'mode': 'readonly'})
             else:
                 form = DEFAULT_REPORT_FORM(request.POST)
@@ -171,9 +191,26 @@ class DairyReport(object):
                     messages.error(request, '欄位未填寫 %s' % form.errors)
                     return render(request, 'patient/dairly_report_edit.html', {
                         'date': report_date,
-                        'form': form, 'patient': PatientProfile.objects.get(pk=patient_id),
+                        'form': form, 'patient': Patient.objects.get(pk=patient_id),
                         'mode': 'readonly'})
             raise Http404
+
+
+@require_lineid
+def list_members(request):
+    if 'pid' in request.GET:
+        query = Patient.objects.filter(pk=request.GET['pid'])
+    else:
+        query = Patient.objects.get_queryset()
+
+    context = {}
+    customer_id = get_customer_id_from_lineid(request.session['line_id'])
+    if customer_id:
+        context['managers'] = query.filter(guardian__customer_id=customer_id).distinct()
+    employee_id = get_employee_id_from_lineid(request.session['line_id'])
+    if customer_id:
+        context['guardians'] = query.filter(manager__employee_id=employee_id, manager__relation="照護經理").distinct()
+    return render(request, 'patient/list_members.html', context)
 
 
 def dairy_card(request, card):
@@ -185,7 +222,7 @@ def dairy_card(request, card):
         raise Http404
 
     session = json.loads(c)
-    patient = PatientProfile.objects.get(pk=session['p'])
+    patient = Patient.objects.get(pk=session['p'])
     date = parse_date(session['d'])
     reports = patient.caredairlyreport_set.filter(report_date=date)
     img = blackbox.cards[int(card)](patient, date, reports)

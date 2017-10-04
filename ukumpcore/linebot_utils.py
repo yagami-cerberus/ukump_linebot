@@ -1,5 +1,9 @@
 
+from django.shortcuts import redirect
 from django.utils import timezone
+from django.urls import reverse
+
+from urllib.parse import quote
 import pytz
 
 from employee.models import Profile as Employee, LineBotIntegration as EmployeeLineBotIntegration
@@ -58,3 +62,12 @@ def get_customer(event):
 
 def localtime():
     return timezone.localtime(timezone=fix_tz)
+
+
+def require_lineid(fn):
+    def wrapper(request, *args, **kw):
+        if 'line_id' not in request.session:
+            return redirect(reverse('linelogin') + '?url=' + quote(request.get_full_path()))
+        else:
+            return fn(request, *args, **kw)
+    return wrapper

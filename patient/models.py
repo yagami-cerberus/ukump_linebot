@@ -2,20 +2,10 @@
 from django.contrib.postgres.fields import DateTimeRangeField
 from django.contrib.postgres.fields import JSONField
 from django.db import models
-from care.models import CourseItem
+from care.models import CourseQuestion
 from .forms_dairy_report import DairyReportFormV1
 
 DEFAULT_REPORT_FORM = DairyReportFormV1
-
-
-class ScheduleManager(models.Manager):
-    def schedule_at(self, date):
-        return self.get_queryset().extra(where=(
-            "(LOWER(schedule) AT TIME ZONE 'Asia/Taipei')::Date = ('%s')::Date" % (date.strftime('%Y-%m-%d'), ),))
-
-    def today_schedule(self):
-        return self.get_queryset().extra(where=(
-            "(LOWER(schedule) AT TIME ZONE 'Asia/Taipei')::Date = (current_timestamp AT TIME ZONE 'Asia/Taipei')::Date",))
 
 
 class ReportManager(models.Manager):
@@ -47,9 +37,6 @@ class Profile(models.Model):
                                       through='Manager',
                                       through_fields=('patient', 'employee'),
                                       related_name='patients')
-
-    def today_courses(self):
-        return self.course_schedule.extra(where=("(weekly_mask & 1 << EXTRACT(DOW FROM current_timestamp AT TIME ZONE 'Asia/Taipei')::int) > 0", ))
 
     def __str__(self):
         return "%i#病患 %s" % (self.id, self.name)
@@ -83,6 +70,9 @@ class CourseSchedule(models.Model):
     table = models.ForeignKey("care.Course")
     weekly_mask = models.IntegerField()
 
+    def __str__(self):
+        return "%i#案例課程 %s" % (self.id, self.table.name)
+
 
 class SpecialCourseSchedule(models.Model):
     class Meta:
@@ -91,6 +81,16 @@ class SpecialCourseSchedule(models.Model):
     patient = models.ForeignKey(Profile, related_name="special_course_schedule")
     employee = models.ForeignKey("employee.Profile")
     date = models.DateField()
+
+
+class ScheduleManager(models.Manager):
+    def schedule_at(self, date):
+        return self.get_queryset().extra(where=(
+            "(LOWER(schedule) AT TIME ZONE 'Asia/Taipei')::Date = ('%s')::Date" % (date.strftime('%Y-%m-%d'), ),))
+
+    def today_schedule(self):
+        return self.get_queryset().extra(where=(
+            "(LOWER(schedule) AT TIME ZONE 'Asia/Taipei')::Date = (current_timestamp AT TIME ZONE 'Asia/Taipei')::Date",))
 
 
 class NursingSchedule(models.Model):
@@ -105,10 +105,12 @@ class NursingSchedule(models.Model):
     flow_control = models.DateTimeField(null=True)
 
     def fetch_next_question(self):
-        courses_id = self.patient.today_courses().values_list('table_id', flat=True)
-        items = CourseItem.objects.filter(table_id__in=courses_id).extra(
-            where=("care_course_item.scheduled_at > (SELECT (flow_control AT TIME ZONE 'Asia/Taipei')::Time FROM patient_nursing_schedule WHERE id = %i)" % self.id,
-                   "care_course_item.scheduled_at <= (SELECT (UPPER(schedule) AT TIME ZONE 'Asia/Taipei')::Time FROM patient_nursing_schedule WHERE id = %i)" % self.id)
+        courses_id = self.patient.course_schedule.extra(
+            where=("(weekly_mask & 1 << EXTRACT(DOW FROM current_timestamp AT TIME ZONE 'Asia/Taipei')::int) > 0", )
+        ).values_list('table_id', flat=True)
+        items = CourseQuestion.objects.filter(table_id__in=courses_id).extra(
+            where=("care_course_question.scheduled_at > (SELECT (flow_control AT TIME ZONE 'Asia/Taipei')::Time FROM patient_nursing_schedule WHERE id = %i)" % self.id,
+                   "care_course_question.scheduled_at <= (SELECT (UPPER(schedule) AT TIME ZONE 'Asia/Taipei')::Time FROM patient_nursing_schedule WHERE id = %i)" % self.id)
         ).select_related("question").order_by('scheduled_at')
         t = None
         for it in items:

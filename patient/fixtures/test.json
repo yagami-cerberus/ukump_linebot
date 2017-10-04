@@ -128,27 +128,72 @@
         "fields": {"name": "強化訓練 (午)"}
     },
     {
-        "model": "care.CourseItem",
+        "model": "care.CourseDetail",
+        "pk": 1,
+        "fields": {"table_id": 1, "name": "測量生命徵象、早餐", "scheduled_at": "08:00"}
+    },
+    {
+        "model": "care.CourseDetail",
+        "pk": 2,
+        "fields": {"table_id": 1, "name": "服藥、收拾環境、收折衣物", "scheduled_at": "08:30"}
+    },
+    {
+        "model": "care.CourseDetail",
+        "pk": 3,
+        "fields": {"table_id": 1, "name": "批曬衣服", "scheduled_at": "10:30"}
+    },
+    {
+        "model": "care.CourseDetail",
+        "pk": 4,
+        "fields": {"table_id": 1, "name": "備餐", "scheduled_at": "11:30"}
+    },
+    {
+        "model": "care.CourseDetail",
+        "pk": 5,
+        "fields": {"table_id": 1, "name": "午餐", "scheduled_at": "12:00"}
+    },
+    {
+        "model": "care.CourseDetail",
+        "pk": 6,
+        "fields": {"table_id": 1, "name": "午睡準備", "scheduled_at": "12:30"}
+    },
+    {
+        "model": "care.CourseDetail",
+        "pk": 7,
+        "fields": {"table_id": 1, "name": "起床準備", "scheduled_at": "13:55"}
+    },
+    {
+        "model": "care.CourseDetail",
+        "pk": 8,
+        "fields": {"table_id": 1, "name": "環境整理", "scheduled_at": "15:30"}
+    },
+    {
+        "model": "care.CourseDetail",
+        "pk": 9,
+        "fields": {"table_id": 1, "name": "沐浴", "scheduled_at": "16:00"}
+    },
+    {
+        "model": "care.CourseQuestion",
         "pk": 1,
         "fields": {"table_id": 1, "question_id": 1, "scheduled_at": "09:00"}
     },
     {
-        "model": "care.CourseItem",
+        "model": "care.CourseQuestion",
         "pk": 2,
         "fields": {"table_id": 1, "question_id": 2, "scheduled_at": "13:00"}
     },
     {
-        "model": "care.CourseItem",
+        "model": "care.CourseQuestion",
         "pk": 3,
         "fields": {"table_id": 1, "question_id": 3, "scheduled_at": "19:00"}
     },
     {
-        "model": "care.CourseItem",
+        "model": "care.CourseQuestion",
         "pk": 4,
         "fields": {"table_id": 2, "question_id": 4, "scheduled_at": "10:00"}
     },
     {
-        "model": "care.CourseItem",
+        "model": "care.CourseQuestion",
         "pk": 5,
         "fields": {"table_id": 3, "question_id": 4, "scheduled_at": "15:00"}
     },

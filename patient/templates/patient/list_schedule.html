@@ -1,37 +1,14 @@
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta/css/bootstrap.min.css" integrity="sha384-/Y6pD6FV/Vv2HJnA6t+vslU6fwYXjCFtcEpHbNJ0lyAFsXTsjBbfaDjzALeQsN6M" crossorigin="anonymous">
-<script src="https://code.jquery.com/jquery-3.2.1.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.11.0/umd/popper.min.js" integrity="sha384-b/U6ypiBEHpOf/4+1nzFpr53nxSS+GLCkfwBdFNTxtclqqenISfwAzpKaMNFNmj4" crossorigin="anonymous"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta/js/bootstrap.min.js" integrity="sha384-h0AbiXch4ZDo7tp9hKZ4TsHbi047NrKGLO3SEJAg45jXxnGIfYzk4Si90RDIqNm1" crossorigin="anonymous"></script>
-</head>
-<body>
-    <div class="container-fluid" id="main">
-        {% if messages %}
-            {% for message in messages %}
-                {% if message.level == DEFAULT_MESSAGE_LEVELS.ERROR %}
-                    <div class="alert alert-danger" role="alert">
-                {% else %}
-                    <div class="alert alert-primary" role="alert">
-                {% endif %}
-                {{ message.message }}</div>
-            {% endfor %}
-        {% endif %}
-        {% for p in patients %}
-            <h3>{{ p.name }}</h3>
-            <div class="container-fluid">
-                {% for c in p.today_courses %}
-                {{ c.table.name }}
-                <div class="container-fluid">
-                    {% for i in c.table.courseitem_set.all %}
-                    <div> {{ i.scheduled_at|time:'H:i' }} {{ i.question.question }}</div>
-                    {% endfor %}
-                </div>
-                {% endfor %}
-            </div>
+{% extends 'base.html' %}
+{% block page_title %}行程{% endblock %}
+{% block content %}
+
+{% for p, details in patients %}
+    <h3>{{ p.name }}</h3>
+    <div class="container-fluid">
+        {% for d in details %}
+        <div>{{ d.scheduled_at|time:'H:i' }} {{ d.name }}</div>
         {% endfor %}
     </div>
-</body>
-</html>
+{% endfor %}
+
+{% endblock %}

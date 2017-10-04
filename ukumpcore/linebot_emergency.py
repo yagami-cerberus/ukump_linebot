@@ -6,6 +6,8 @@ import json
 
 from . import linebot_utils as utils
 
+T_EMERGENCY = 'T_EMERGENCY'
+
 STAGE_INIGITION = 'i'
 STAGE_SELECT_TARGET = 's'
 STAGE_TRANSFER_CONFIRM = 'a'
@@ -14,24 +16,24 @@ STAGE_DISMISS_CONFIRM = 'dc'
 STAGE_DISMISS = 'd'
 
 
-ACTION_CANCEL = PostbackTemplateAction("緊急狀況解除", json.dumps({'S': '', 'T': 'emergency', 'stage': STAGE_DISMISS_CONFIRM, 'V': True}))
+ACTION_CANCEL = PostbackTemplateAction("緊急狀況解除", json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_DISMISS_CONFIRM, 'V': True}))
 TEMPLATE_IGNITION = TemplateSendMessage(
     alt_text="確認緊急通報",
     template=ButtonsTemplate(text="確認緊急通報", actions=[
-        PostbackTemplateAction("是", json.dumps({'S': '', 'T': 'emergency', 'stage': STAGE_INIGITION, 'V': True})),
-        PostbackTemplateAction("否", json.dumps({'S': '', 'T': 'emergency', 'stage': STAGE_INIGITION, 'V': False}))]))
+        PostbackTemplateAction("是", json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_INIGITION, 'V': True})),
+        PostbackTemplateAction("否", json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_INIGITION, 'V': False}))]))
 TEMPLATE_SELECTION = TemplateSendMessage(
     alt_text="通報對象",
     template=ButtonsTemplate(text="通報對象", actions=[
-        PostbackTemplateAction("救護車/消防隊", json.dumps({'S': '', 'T': 'emergency', 'stage': STAGE_SELECT_TARGET, 'V': 110})),
-        PostbackTemplateAction("警察局", json.dumps({'S': '', 'T': 'emergency', 'stage': STAGE_SELECT_TARGET, 'V': 119})),
-        PostbackTemplateAction("關懷中心", json.dumps({'S': '', 'T': 'emergency', 'stage': STAGE_SELECT_TARGET, 'V': 999}))]))
+        PostbackTemplateAction("救護車/消防隊", json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_SELECT_TARGET, 'V': 119})),
+        PostbackTemplateAction("警察局", json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_SELECT_TARGET, 'V': 110})),
+        PostbackTemplateAction("關懷中心", json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_SELECT_TARGET, 'V': 999}))]))
 TEMPLATE_DISMISS_CONFIRM = TemplateSendMessage(
     alt_text="解除緊急通報",
     template=ButtonsTemplate(text="確認解除緊急通報", actions=[
-        PostbackTemplateAction("是", json.dumps({'S': '', 'T': 'emergency', 'stage': STAGE_DISMISS, 'V': True}))]))
+        PostbackTemplateAction("是", json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_DISMISS, 'V': True}))]))
 TEMPLATE_TRANSFER_ACTION = [
-    PostbackTemplateAction("確認", json.dumps({'S': '', 'T': 'emergency', 'stage': STAGE_TRANSFER, 'V': True}))]
+    PostbackTemplateAction("確認", json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_TRANSFER, 'V': True}))]
 
 
 def ignition_emergency(line_bot, event):
@@ -44,8 +46,8 @@ def select_emergency_target(line_bot, event):
 
 def contact_care_center(line_bot, event):
     actions = [
-        URITemplateAction("個案資訊及聯絡", settings.SITE_ROOT + reverse('line_nav', args=('emergency', ))),
-        PostbackTemplateAction("轉知照護經理", json.dumps({'S': '', 'T': 'emergency', 'stage': STAGE_TRANSFER_CONFIRM, 'V': True})),
+        URITemplateAction("個案資訊及聯絡", settings.SITE_ROOT + reverse('patient_list_members')),
+        PostbackTemplateAction("轉知照護經理", json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_TRANSFER_CONFIRM, 'V': True})),
         ACTION_CANCEL]
 
     strftime = utils.localtime().strftime('%m/%d %H:%M')
@@ -87,7 +89,7 @@ def transfer(line_bot, event):
                 template=ButtonsTemplate(
                     text="照護員緊急通報\n個案: %s\n時間 %s" % (patient.name, strftime, ),
                     actions=[
-                        URITemplateAction("個案資訊及聯絡", settings.SITE_ROOT + reverse('line_nav', args=('emergency', ))),
+                        URITemplateAction("個案資訊及聯絡", settings.SITE_ROOT + reverse('line_nav', args=('contact', ))),
                         ACTION_CANCEL
                     ]))
             for lineid in utils.get_employees_lineid(patient.managers.filter(manager__relation="照護經理")):
@@ -101,7 +103,7 @@ def transfer(line_bot, event):
                 template=ButtonsTemplate(
                     text="家屬緊急通報\n個案: %s\n時間 %s" % (patient.name, strftime, ),
                     actions=[
-                        URITemplateAction("個案資訊及聯絡", settings.SITE_ROOT + reverse('line_nav', args=('emergency', ))),
+                        URITemplateAction("個案資訊及聯絡", settings.SITE_ROOT + reverse('line_nav', args=('contact', ))),
                         ACTION_CANCEL
                     ]))
             for lineid in utils.get_employees_lineid(patient.managers.filter(manager__relation="照護經理")):
@@ -116,7 +118,8 @@ def dismiss(line_bot, event):
     line_bot.reply_message(event.reply_token, TextSendMessage("緊急狀況解除"))
 
 
-def handle_postback(line_bot, event, stage, value):
+def handle_postback(line_bot, event, resp):
+    stage, value = resp['stage'], resp.get('V')
     if stage == STAGE_INIGITION:
         if value:
             select_emergency_target(line_bot, event)

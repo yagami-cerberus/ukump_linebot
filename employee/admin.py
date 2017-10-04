@@ -24,7 +24,7 @@ class LineBotIntegrationForm(forms.ModelForm):
 
 
 class LineBotIntegrationInline(admin.TabularInline):
-    extra = 1
+    max_num = 1
     model = models.LineBotIntegration
     form = LineBotIntegrationForm
 

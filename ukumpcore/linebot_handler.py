@@ -8,22 +8,20 @@ from django.conf import settings
 from django.http import HttpResponse
 from django.urls import reverse
 from django.db import connection, transaction
-
-from . import linebot_emergency, nursing_scheduler
-from patient.models import CareDairlyReport
-from employee.models import Profile as Employee, LineMessageQueue as EmployeeLineMessageQueue
-from customer.models import LineMessageQueue as CustomerLineMessageQueue
-
-from linebot.models import MessageEvent, PostbackEvent, LocationMessage, TextMessage, URITemplateAction
 from binascii import b2a_hex
 import json
 import os
 
 from linebot import LineBotApi, WebhookHandler
 from linebot.models import (
-    TextSendMessage, PostbackTemplateAction,
-    TemplateSendMessage, ButtonsTemplate, CarouselTemplate, CarouselColumn,  # , ConfirmTemplate
+    MessageEvent, PostbackEvent, LocationMessage, TextMessage, TextSendMessage, PostbackTemplateAction,
+    TemplateSendMessage, ButtonsTemplate, CarouselTemplate, CarouselColumn, URITemplateAction
 )
+
+from . import linebot_emergency, linebot_nursing, nursing_scheduler
+from patient.models import CareDairlyReport
+from employee.models import Profile as Employee, LineMessageQueue as EmployeeLineMessageQueue
+from customer.models import LineMessageQueue as CustomerLineMessageQueue
 
 
 ACCESS_TOKEN = settings.LINEBOT_ACCESS_TOKEN
@@ -94,6 +92,7 @@ def flush_message(record):
         line_bot.push_message(line_id, TemplateSendMessage(
             alt_text=data["t"],
             template=ButtonsTemplate(text=data["t"], actions=line_actions)))
+
     elif message_type == "c":
         columns = []
         for col in data['col']:
@@ -101,13 +100,15 @@ def flush_message(record):
             for a in col['a']:
                 if a[0] == 'u':
                     actions.append(URITemplateAction(a[1], a[2]))
+                elif a[0] == 'p':
+                    actions.append(PostbackTemplateAction(a[1], a[2]))
+
             columns.append(CarouselColumn(thumbnail_image_url=col['url'], text=col['text'] or 'NOTEXT', actions=actions))
         template = TemplateSendMessage(alt_text=data['alt'], template=CarouselTemplate(columns=columns))
         line_bot.push_message(line_id, template)
     record.delete()
 
 
-# http://li1686-24.members.linode.com:8000/patient/card/3/?token=YO09P6uvhtVQQOXP
 def flush_messages_queue():
     c = connection.cursor()
     c.execute('select pg_try_advisory_lock(105);')
@@ -134,14 +135,14 @@ def handle_postback(event):
 
     resp = json.loads(event.postback.data)
 
-    session = resp["S"]
-    value = resp["V"]
+    session = resp.get("S")
+    value = resp.get("V")
 
     if session:
         cache_data = cache.get('_line_postback:%s' % session)
 
         if not cache_data:
-            raise LineMessageError("無效的回應訊息 (BAD_S)")
+            raise LineMessageError("此操作選項已經逾期")
 
         session_data = json.loads(cache_data)
         employee = Employee.objects.filter(linebotintegration__lineid=event.source.user_id).first()
@@ -163,8 +164,12 @@ def handle_postback(event):
                 raise LineMessageError("無效的回應訊息 BAD_T")
         else:
             line_bot.reply_message(event.reply_token, TextSendMessage(text="無效的回應訊息 (C)"))
-    elif resp["T"] == "emergency":
-        linebot_emergency.handle_postback(line_bot, event, resp['stage'], value)
+    elif resp["T"] == nursing_scheduler.T_CONTECT:
+        linebot_nursing.contect_manager(line_bot, event, resp)
+    elif resp["T"] == linebot_nursing.T_PHONE:
+        linebot_nursing.contect_phone(line_bot, event, resp)
+    elif resp["T"] == linebot_emergency.T_EMERGENCY:
+        linebot_emergency.handle_postback(line_bot, event, resp)
 
 
 @handler.add(MessageEvent, message=TextMessage)
@@ -175,12 +180,15 @@ def handle_message(event):
 
     if event.message.text == '緊急通報':
         linebot_emergency.ignition_emergency(line_bot, event)
+    elif event.message.text == '最新日報':
+        linebot_nursing.request_cards(line_bot, event)
     elif event.message.text == '1':
         flush_messages_queue()
     elif event.message.text == '2':
         nursing_scheduler.schedule_fixed_schedule_message()
     elif event.message.text == '3':
-        nursing_scheduler.prepare_dairly_cards()
+        linebot_nursing.prepare_dairly_cards()
+        raise LineMessageError("卡片準備完成")
     else:
         raise LineMessageError(event.source.user_id)
 

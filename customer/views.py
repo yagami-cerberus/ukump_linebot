@@ -5,7 +5,7 @@ from django.contrib import messages
 # from django.urls import reverse
 import json
 
-from ukumpcore.line_utils import require_lineid
+from ukumpcore.linebot_utils import require_lineid
 from patient.models import Profile as PatientProfile, Guardian
 from customer.models import Profile as CustomerProfile, LineBotIntegration
 

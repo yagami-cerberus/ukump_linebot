@@ -10,7 +10,7 @@ from django.urls import reverse
 import http.client
 import json
 
-from . import line_utils
+from ukumpcore.linebot_utils import require_lineid
 
 
 LINE_CHANNEL_ID = settings.LINELOGIN_CHANNEL_ID
@@ -26,6 +26,10 @@ def nav(request, label):
         return redirect(reverse('patient_dairly_reports') + '?url=' + quote(request.get_full_path()))
     elif label == 'dairy-schedule':
         return redirect(reverse('patient_main'))
+    elif label == 'list_members':
+        return redirect(reverse('patient_list_members'))
+    elif label == 'contact':
+        return redirect(reverse('patient_list_members'))
     else:
         return HttpResponse(label)
 
@@ -70,7 +74,7 @@ def final(request):
     return redirect(url)
 
 
-@line_utils.require_lineid
+@require_lineid
 def admin_login(request):
     line_id = request.session['line_id']
     user = get_user_model().objects.get(username=line_id)

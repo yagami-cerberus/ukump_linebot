@@ -8,7 +8,7 @@ class Question(models.Model):
         db_table = "care_question"
 
     question = models.TextField()
-    program_label = ArrayField(models.TextField(), default=[])
+    program_label = ArrayField(models.TextField(), default=[], blank=True)
     response_labels = ArrayField(models.TextField())
     response_values = ArrayField(models.IntegerField())
     archived = models.BooleanField(null=False, default=False)
@@ -26,12 +26,25 @@ class Course(models.Model):
         return "%i#課程 %s" % (self.id, self.name)
 
 
-class CourseItem(models.Model):
+class CourseDetail(models.Model):
     class Meta:
-        db_table = "care_course_item"
+        db_table = "care_course_detail"
         ordering = ['scheduled_at']
 
-    question = models.ForeignKey(Question)
+    table = models.ForeignKey(Course)
+    name = models.TextField()
+    scheduled_at = models.TimeField()
+
+    def __str__(self):
+        return "%i#日課 %s" % (self.id, self.name)
+
+
+class CourseQuestion(models.Model):
+    class Meta:
+        db_table = "care_course_question"
+        ordering = ['scheduled_at']
+
+    question = models.ForeignKey(Question, limit_choices_to={"archived": False})
     table = models.ForeignKey(Course)
     scheduled_at = models.TimeField()
 
