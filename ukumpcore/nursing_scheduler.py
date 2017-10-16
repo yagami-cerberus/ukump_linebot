@@ -48,30 +48,45 @@ def schedule_nursing_question(schedule):
     items = tuple(schedule.fetch_next_question())
 
     if items:
+        has_q = False
         scheduled_at = None
+
         for it in items:
             scheduled_at = create_datetime(schedule.flow_control.astimezone(fix_tz), it.scheduled_at)
-            message = {
-                "T": T_CARE_QUESTION_POSTBACK,
-                "M": "q",
-                "s": schedule.pk,
-                "p": schedule.patient_id,
-                "qid": it.question_id,
-                "sch": scheduled_at.isoformat(),
-                "r": True,
-                "t": it.question.question,
-                "q": tuple(zip(it.question.response_labels, it.question.response_values))
-            }
+
+            if it.question.response_labels:
+                has_q = True
+                message = {
+                    "T": T_CARE_QUESTION_POSTBACK,
+                    "M": "q",
+                    "s": schedule.pk,
+                    "p": schedule.patient_id,
+                    "qid": it.question_id,
+                    "sch": scheduled_at.isoformat(),
+                    "r": True,
+                    "t": it.question.question,
+                    "q": tuple(zip(it.question.response_labels, it.question.response_values))
+                }
+            else:
+                message = {
+                    "M": "t",
+                    "t": it.question.question
+                }
+
             EmployeeLineMessageQueue(employee=schedule.employee,
                                      scheduled_at=scheduled_at,
                                      message=json.dumps(message)).save()
         schedule.flow_control = scheduled_at
+        schedule.save()
+
+        if has_q is False:
+            schedule_nursing_question(schedule)
     else:
         EmployeeLineMessageQueue(employee=schedule.employee,
                                  scheduled_at=schedule.schedule.upper,
                                  message=json.dumps({'M': 't', 't': '今日 %s 照護行程已結束' % schedule.patient.name})).save()
         schedule.flow_control = schedule.schedule.upper + timedelta(seconds=1)
-    schedule.save()
+        schedule.save()
 
 
 @transaction.atomic

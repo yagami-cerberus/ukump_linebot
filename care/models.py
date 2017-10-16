@@ -9,8 +9,8 @@ class Question(models.Model):
 
     question = models.TextField()
     program_label = ArrayField(models.TextField(), default=[], blank=True)
-    response_labels = ArrayField(models.TextField())
-    response_values = ArrayField(models.IntegerField())
+    response_labels = ArrayField(models.TextField(), blank=True)
+    response_values = ArrayField(models.IntegerField(), blank=True)
     archived = models.BooleanField(null=False, default=False)
 
     def __str__(self):
