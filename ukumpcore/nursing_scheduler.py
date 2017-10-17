@@ -13,7 +13,7 @@ from patient.models import NursingSchedule, CareHistory
 fix_tz = pytz.timezone('Etc/GMT-8')
 
 NOON = time(12, 30)
-NIGHT = time(18, 00)
+NIGHT = time(17, 30)
 T_NUSRING_BEGIN = "NCBEGIN"
 T_CARE_QUESTION_POSTBACK = "NCQUESP"
 T_CONTECT = "NCCONTECT"
@@ -98,15 +98,17 @@ def postback_nursing_begin(employee, session_data, value):
             t_noon = create_datetime(now, NOON)
             t_night = create_datetime(now, NIGHT)
 
-            noon_url = settings.SITE_ROOT + reverse('patient_dairly_report', args=(schedule.patient_id, t_noon.date(), 12))
-            EmployeeLineMessageQueue(employee=schedule.employee,
-                                     scheduled_at=t_noon,
-                                     message=json.dumps({'M': 'u', 't': '上午日報表', 'u': (('填寫', noon_url), )})).save()
+            if t_noon in schedule.schedule:
+                noon_url = settings.SITE_ROOT + reverse('patient_dairly_report', args=(schedule.patient_id, t_noon.date(), 12))
+                EmployeeLineMessageQueue(employee=schedule.employee,
+                                         scheduled_at=t_noon,
+                                         message=json.dumps({'M': 'u', 't': '上午日報表', 'u': (('填寫', noon_url), )})).save()
 
-            night_url = settings.SITE_ROOT + reverse('patient_dairly_report', args=(schedule.patient_id, t_noon.date(), 18))
-            EmployeeLineMessageQueue(employee=schedule.employee,
-                                     scheduled_at=t_night,
-                                     message=json.dumps({'M': 'u', 't': '下午日報表', 'u': (('填寫', night_url), )})).save()
+            if t_night in schedule.schedule:
+                night_url = settings.SITE_ROOT + reverse('patient_dairly_report', args=(schedule.patient_id, t_noon.date(), 18))
+                EmployeeLineMessageQueue(employee=schedule.employee,
+                                         scheduled_at=t_night,
+                                         message=json.dumps({'M': 'u', 't': '下午日報表', 'u': (('填寫', night_url), )})).save()
             schedule_nursing_question(schedule)
     else:
         for employee in Employee.objects.filter(manager__patient=schedule.patient, manager__relation="照護經理"):

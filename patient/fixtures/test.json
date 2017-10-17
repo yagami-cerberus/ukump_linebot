@@ -95,32 +95,62 @@
     {
         "model": "care.Question",
         "pk": 1,
-        "fields": {"question": "早餐吃?", "program_label": [], "response_labels": ["吃完", "1/3", "幾乎沒吃"], "response_values": [2, 1, 0]}
+        "fields": {"question": "用餐後請記得提醒服藥", "program_label": [], "response_labels": ["了解"], "response_values": [0]}
     },
     {
         "model": "care.Question",
         "pk": 2,
-        "fields": {"question": "中餐吃?", "program_label": [], "response_labels": ["吃完", "1/3", "幾乎沒吃"], "response_values": [2, 1, 0]}
+        "fields": {"question": "請記得引導執行衣物請清洗、收折、收納", "program_label": [], "response_labels": ["了解"], "response_values": [0]}
     },
     {
         "model": "care.Question",
         "pk": 3,
-        "fields": {"question": "晚餐吃?", "program_label": [], "response_labels": ["吃完", "1/3", "幾乎沒吃"], "response_values": [2, 1, 0]}
+        "fields": {"question": "返家後請記得披曬衣物", "program_label": [], "response_labels": ["了解"], "response_values": [0]}
     },
     {
         "model": "care.Question",
         "pk": 4,
-        "fields": {"question": "課程狀況", "program_label": [], "response_labels": ["提早完成", "準時完成", "延後完成"], "response_values": [2, 1, 0]}
+        "fields": {"question": "快中午了，需要準備午餐囉!", "program_label": [], "response_labels": ["了解"], "response_values": [0]}
+    },
+    {
+        "model": "care.Question",
+        "pk": 5,
+        "fields": {"question": "用餐後請記得提醒服藥", "program_label": [], "response_labels": ["了解"], "response_values": [0]}
+    },
+    {
+        "model": "care.Question",
+        "pk": 6,
+        "fields": {"question": "午睡時間即將結束", "program_label": [], "response_labels": ["了解"], "response_values": [0]}
+    },
+    {
+        "model": "care.Question",
+        "pk": 7,
+        "fields": {"question": "活動時間", "program_label": [], "response_labels": ["了解"], "response_values": [0]}
+    },
+    {
+        "model": "care.Question",
+        "pk": 8,
+        "fields": {"question": "沐浴時間", "program_label": [], "response_labels": ["了解"], "response_values": [0]}
+    },
+    {
+        "model": "care.Question",
+        "pk": 9,
+        "fields": {"question": "今日服務時間即將結束，請整理一下活動環境!", "program_label": [], "response_labels": ["了解"], "response_values": [0]}
+    },
+    {
+        "model": "care.Question",
+        "pk": 10,
+        "fields": {"question": "如廁提醒", "program_label": [], "response_labels": ["已如廁", "拒絕"], "response_values": [0, 1]}
     },
     {
         "model": "care.Course",
         "pk": 1,
-        "fields": {"name": "一般課程"}
+        "fields": {"name": "長期全日課程"}
     },
     {
         "model": "care.Course",
         "pk": 2,
-        "fields": {"name": "強化訓練 (早)"}
+        "fields": {"name": "短期一般陪伴 (上午)"}
     },
     {
         "model": "care.Course",
@@ -175,27 +205,87 @@
     {
         "model": "care.CourseQuestion",
         "pk": 1,
-        "fields": {"table_id": 1, "question_id": 1, "scheduled_at": "09:00"}
+        "fields": {"table_id": 1, "question_id": 1, "scheduled_at": "08:15"}
     },
     {
         "model": "care.CourseQuestion",
         "pk": 2,
-        "fields": {"table_id": 1, "question_id": 2, "scheduled_at": "13:00"}
+        "fields": {"table_id": 1, "question_id": 2, "scheduled_at": "08:30"}
     },
     {
         "model": "care.CourseQuestion",
         "pk": 3,
-        "fields": {"table_id": 1, "question_id": 3, "scheduled_at": "19:00"}
+        "fields": {"table_id": 1, "question_id": 3, "scheduled_at": "11:00"}
     },
     {
         "model": "care.CourseQuestion",
         "pk": 4,
-        "fields": {"table_id": 2, "question_id": 4, "scheduled_at": "10:00"}
+        "fields": {"table_id": 1, "question_id": 4, "scheduled_at": "11:15"}
     },
     {
         "model": "care.CourseQuestion",
         "pk": 5,
-        "fields": {"table_id": 3, "question_id": 4, "scheduled_at": "15:00"}
+        "fields": {"table_id": 1, "question_id": 5, "scheduled_at": "12:00"}
+    },
+    {
+        "model": "care.CourseQuestion",
+        "pk": 6,
+        "fields": {"table_id": 1, "question_id": 6, "scheduled_at": "13:55"}
+    },
+    {
+        "model": "care.CourseQuestion",
+        "pk": 7,
+        "fields": {"table_id": 1, "question_id": 7, "scheduled_at": "14:00"}
+    },
+    {
+        "model": "care.CourseQuestion",
+        "pk": 8,
+        "fields": {"table_id": 1, "question_id": 8, "scheduled_at": "15:30"}
+    },
+    {
+        "model": "care.CourseQuestion",
+        "pk": 9,
+        "fields": {"table_id": 1, "question_id": 9, "scheduled_at": "16:30"}
+    },
+    {
+        "model": "care.CourseQuestion",
+        "pk": 10,
+        "fields": {"table_id": 1, "question_id": 10, "scheduled_at": "10:00"}
+    },
+    {
+        "model": "care.CourseQuestion",
+        "pk": 11,
+        "fields": {"table_id": 1, "question_id": 10, "scheduled_at": "12:05"}
+    },
+    {
+        "model": "care.CourseQuestion",
+        "pk": 12,
+        "fields": {"table_id": 1, "question_id": 10, "scheduled_at": "14:00"}
+    },
+    {
+        "model": "care.CourseQuestion",
+        "pk": 13,
+        "fields": {"table_id": 1, "question_id": 10, "scheduled_at": "16:30"}
+    },
+    {
+        "model": "care.CourseQuestion",
+        "pk": 201,
+        "fields": {"table_id": 2, "question_id": 1, "scheduled_at": "08:15"}
+    },
+    {
+        "model": "care.CourseQuestion",
+        "pk": 202,
+        "fields": {"table_id": 2, "question_id": 2, "scheduled_at": "08:30"}
+    },
+    {
+        "model": "care.CourseQuestion",
+        "pk": 203,
+        "fields": {"table_id": 2, "question_id": 3, "scheduled_at": "11:00"}
+    },
+    {
+        "model": "care.CourseQuestion",
+        "pk": 204,
+        "fields": {"table_id": 2, "question_id": 4, "scheduled_at": "11:15"}
     },
     {
         "model": "patient.CourseSchedule",
