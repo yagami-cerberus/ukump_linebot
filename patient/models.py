@@ -25,8 +25,9 @@ class Profile(models.Model):
         db_table = "patient_profile"
 
     name = models.TextField()
-    birthday = models.DateField(null=True)
-    extend = JSONField(null=True)
+    birthday = models.DateField(null=True, blank=True)
+    extend = JSONField(null=True, blank=True)
+    due_date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     customers = models.ManyToManyField(to='customer.Profile',
@@ -74,15 +75,6 @@ class CourseSchedule(models.Model):
         return "%i#案例課程 %s" % (self.id, self.table.name)
 
 
-class SpecialCourseSchedule(models.Model):
-    class Meta:
-        db_table = "patient_special_course_table"
-
-    patient = models.ForeignKey(Profile, related_name="special_course_schedule")
-    employee = models.ForeignKey("employee.Profile")
-    date = models.DateField()
-
-
 class ScheduleManager(models.Manager):
     def schedule_at(self, date):
         return self.get_queryset().extra(where=(
@@ -91,6 +83,16 @@ class ScheduleManager(models.Manager):
     def today_schedule(self):
         return self.get_queryset().extra(where=(
             "(LOWER(schedule) AT TIME ZONE 'Asia/Taipei')::Date = (current_timestamp AT TIME ZONE 'Asia/Taipei')::Date",))
+
+
+# class SpecialCourseSchedule(models.Model):
+#     class Meta:
+#         db_table = "patient_special_course_table"
+
+#     name = models.TextField()
+#     patient = models.ForeignKey(Profile, related_name="special_course_schedule")
+#     employee = models.ForeignKey("employee.Profile")
+#     schedule = DateTimeRangeField()
 
 
 class NursingSchedule(models.Model):

@@ -15,8 +15,8 @@ class Profile(models.Model):
         return "<Employee %i: %s>" % (self.id, self.name)
 
     name = models.TextField()
-    profile = JSONField(null=True)
-    members = ArrayField(models.TextField())
+    profile = JSONField(null=True, blank=True)
+    members = ArrayField(models.TextField(), blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def today_nursing_schedule(self):

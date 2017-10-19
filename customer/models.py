@@ -14,8 +14,8 @@ class Profile(models.Model):
         db_table = "customer"
 
     name = models.TextField()
-    phone = models.TextField(null=True)
-    profile = JSONField(null=True)
+    phone = models.TextField(null=True, blank=True)
+    profile = JSONField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
