@@ -14,7 +14,7 @@ class Question(models.Model):
     archived = models.BooleanField(null=False, default=False)
 
     def __str__(self):
-        return "%i#問題 %s" % (self.id, self.question)
+        return "%s#問題 %s" % (self.id, self.question)
 
 
 class Course(models.Model):
@@ -23,7 +23,7 @@ class Course(models.Model):
     name = models.TextField()
 
     def __str__(self):
-        return "%i#課程 %s" % (self.id, self.name)
+        return "%s#課程 %s" % (self.id, self.name)
 
 
 class CourseDetail(models.Model):
@@ -36,7 +36,7 @@ class CourseDetail(models.Model):
     scheduled_at = models.TimeField()
 
     def __str__(self):
-        return "%i#日課 %s" % (self.id, self.name)
+        return "%s#日課 %s" % (self.id, self.name)
 
 
 class CourseQuestion(models.Model):
@@ -49,4 +49,4 @@ class CourseQuestion(models.Model):
     scheduled_at = models.TimeField()
 
     def __str__(self):
-        return "%i#課程項目 %s (%s)" % (self.id, self.question.question, self.scheduled_at)
+        return "%s#課程項目 %s (%s)" % (self.id, self.question.question, self.scheduled_at)
