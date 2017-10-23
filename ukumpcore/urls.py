@@ -35,10 +35,13 @@ urlpatterns = [
 
     # 檢視日報表清單
     url(r'^patient/dairy_reports$', patient_view.dairy_reports, name='patient_dairly_reports'),
+
     # 檢視/填寫日報表
     url(r'^patient/dairy_report/(?P<patient_id>[0-9]+)/(?P<date>\d{4}-\d{2}-\d{2})/(?P<period>\d{2})/$', patient_view.DairyReport, name='patient_dairly_report'),
+
     # 聯絡人清單
     url(r'^patient/members$', patient_view.list_members, name='patient_list_members'),
+
     # 卡片
     url(r'^patient/card/(?P<card>\d{1})/$', patient_view.dairy_card, name='patient_card'),
 
