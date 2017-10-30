@@ -218,7 +218,7 @@ def process_card_4(reports):
     g1 = max(r.report.get("日課表活動/參與狀況", 0) % 3 for r in reports)
     status.append(("活動參與情形", g1 + 1))
     return status
-process_card_3.catalog_id = 3
+process_card_4.catalog_id = 3
 
 
 cards = (process_card_1, process_card_2, process_card_3, process_card_4)

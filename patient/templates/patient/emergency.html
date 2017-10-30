@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block page_title %}緊急通報{% endblock %}
+{% block content %}
+
+<script>
+function confirm_submit() {
+    var message = `確認通報案件 {{ patient.name }}
+
+聯絡電話: ${$("#phone").val()}
+
+緊急事項: ${$("[name=event]:checked").val()}
+
+處置: ${$("[name=handle]:checked").map((i, e) => e.value).get().join(",") || "無"}
+
+備註事項: ${$("#summary").val() || "無"}
+`
+    phone = $("");
+    return confirm(message);
+}
+</script>
+
+<h2>緊急通報</h2>
+
+<form method="POST" onsubmit="return confirm_submit()">
+    {% csrf_token %}
+    <div class="form-group row">
+        <label class="col-sm-2 col-form-label">通報案件</label>
+        <div class="col-sm-10">
+            <div class="form-control-plaintext">{{ patient.name }} ({{ source.name }}/{{ role }})</div>
+        </div>
+    </div>
+    <div class="form-group row">
+        <label class="col-sm-2 col-form-label">聯絡電話</label>
+        <div class="col-sm-10">
+            <input type="text" class="form-control" id="phone" name="phone" value="{{ source.profile.phone }}" placeholder="聯絡電話">
+        </div>
+    </div>
+    <div class="form-group row">
+        <label class="col-sm-2 col-form-label">緊急事項</label>
+        <div class="col-sm-10">
+            <div class="form-check">
+                <label class="form-check-label">
+                    <input class="form-check-input" type="radio" name="event" value="跌倒/受傷">
+                    跌倒/受傷
+                </label>
+            </div>
+            <div class="form-check">
+                <label class="form-check-label">
+                    <input class="form-check-input" type="radio" name="event" value="昏迷">
+                    昏迷
+                </label>
+            </div>
+            <div class="form-check">
+                <label class="form-check-label">
+                    <input class="form-check-input" type="radio" name="event" value="其他" checked>
+                    其他 (請在備註簡述問題)
+                </label>
+            </div>
+        </div>
+    </div>
+    <div class="form-group row">
+        <label class="col-sm-2 col-form-label">處置</label>
+        <div class="col-sm-10">
+            <div class="form-check">
+                <label class="form-check-label">
+                    <input class="form-check-input" type="checkbox" name="handle" value="已聯絡救護車/消防隊">
+                    已聯絡救護車/消防隊
+                </label>
+            </div>
+            <div class="form-check">
+                <label class="form-check-label">
+                    <input class="form-check-input" type="checkbox" name="handle" value="已聯警察局">
+                    已聯警察局
+                </label>
+            </div>
+            <div class="form-check">
+                <label class="form-check-label">
+                    <input class="form-check-input" type="checkbox" name="handle" value="已自行送醫">
+                    已自行送醫
+                </label>
+            </div>
+        </div>
+    </div>
+    <div class="form-group row">
+        <label class="col-sm-2 col-form-label">備註</label>
+        <div class="col-sm-10">
+            <textarea name="summary" class="form-control" id="summary" placeholder="備註" rows="3"></textarea>
+        </div>
+    </div>
+    <p class="text-center">
+        <button type="submit" class="btn btn-sm btn-primary">送出</button>
+    </p>
+</form>
+{% endblock %}

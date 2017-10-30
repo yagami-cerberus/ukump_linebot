@@ -2,6 +2,7 @@
 from django.contrib.postgres.fields import JSONField
 from django.db.models.functions import Now
 from django.db import models
+import json
 
 
 class LineMessageManager(models.Manager):
@@ -19,11 +20,10 @@ class Profile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return "%i#客戶 %s" % (self.id, self.name)
+        return "%s#客戶 %s" % (self.id, self.name)
 
-    @classmethod
-    def get_id_from_line_id(cls, line_id):
-        return LineBotIntegration.objects.filter(lineid=line_id).values_list('customer_id', flat=True).first()
+    def push_message(self, message):
+        LineMessageQueue(customer=self, scheduled_at=Now(), message=json.dumps({'M': 't', 't': message})).save()
 
 
 class LineBotIntegration(models.Model):
@@ -42,7 +42,7 @@ class LineMessageQueue(models.Model):
 
     customer = models.ForeignKey(Profile)
     scheduled_at = models.DateTimeField()
-    message = JSONField()
+    message = models.TextField()
 
     def get_line_ids(self):
         return self.customer.linebotintegration_set.values_list('lineid', flat=True)

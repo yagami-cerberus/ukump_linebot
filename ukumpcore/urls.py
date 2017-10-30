@@ -30,6 +30,9 @@ urlpatterns = [
     # 每日行程
     url(r'^patient/dairy_schedule$', patient_view.dairy_schedule, name='patient_main'),
 
+    # 緊急通報
+    url(r'^patient/(?P<patient_id>[0-9]+)/emergency', patient_view.emergency, name='patient_emergency'),
+
     # 檢視/填寫日報表
     url(r'^patient/(?P<patient_id>[0-9]+)/summary/(?P<catalog>\d{1})/$', patient_view.summary, name='patient_summary'),
 

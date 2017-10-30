@@ -1,0 +1,131 @@
+{% extends 'patient/summary_base.html' %}
+{% block page_title %}行程{% endblock %}
+{% block dashboard %}
+
+<script>
+function drawBloodPressure() {
+    var data = google.visualization.arrayToDataTable([
+        ['10/18', 70, 70, 103, 103],
+        ['10/19', 84, 84, 110, 110],
+        ['10/20', 94, 94, 120, 120],
+        ['10/21', 88, 88, 115, 115],
+        ['10/22', 89, 89, 111, 111],
+        ['10/23', 91, 91, 130, 130]
+    ], true);
+
+    var options = {
+        legend: 'none'
+    };
+
+    var chart = new google.visualization.CandlestickChart(document.getElementById('blood_pressure_div'));
+    chart.draw(data, options);
+}
+
+function drawPulse() {
+    var data = google.visualization.arrayToDataTable([
+      ['日期', '心跳'],
+      ['10/18', 70],
+      ['10/19', 73],
+      ['10/20', 79],
+      ['10/21', 75],
+      ['10/22', 83],
+      ['10/23', 73],
+    ]);
+
+    var options = {
+        legend: 'none'
+    };
+
+    var chart = new google.visualization.LineChart(document.getElementById('pulse_div'));
+    chart.draw(data, options);
+}
+
+function drawBodyTemp() {
+    var data = google.visualization.arrayToDataTable([
+      ['日期', '體溫'],
+      ['10/18', 36.5],
+      ['10/19', 37.3],
+      ['10/20', 37.0],
+      ['10/21', 37.1],
+      ['10/22', 36.9],
+      ['10/23', 37.3],
+    ]);
+
+    var options = {
+        legend: 'none'
+    };
+
+    var chart = new google.visualization.LineChart(document.getElementById('body_temp_div'));
+    chart.draw(data, options);
+}
+
+
+function drawChart() {
+    drawBloodPressure();
+    drawPulse();
+    drawBodyTemp();
+}
+
+google.charts.load('current', {'packages':['corechart']});
+google.charts.setOnLoadCallback(drawChart);
+
+</script>
+
+<div>最新報告時間 {{ last_report.report_date }} / {% if last_report.report_period > 14 %}晚{% else %}午{% endif %}</div>
+<div>填單 {{ last_report.filled_by.name }} </div>
+
+<div>血壓 {{ last_report.report.收縮壓 }} / {{ last_report.report.舒張壓 }}</div>
+<div>脈搏 {{ last_report.report.脈搏 }} {% if last_report.report.脈搏規律 != True %} 不規則 {% endif %}</div>
+<div>體溫 {{ last_report.report.體溫 }}</div>
+<div>呼吸 {{ last_report.report.呼吸 }} {% if last_report.report.呼吸規則 != True %} 不規則 {% endif %}</div>
+<div>皮膚</div>
+
+<div class="row">
+    <div class="col-xs-12 col-lg-6 summary-card">
+        <div class="card">
+          <div class="card-header">
+            血壓
+          </div>
+          <div class="card-body">
+            <div id="blood_pressure_div"></div>
+          </div>
+        </div>
+    </div>
+
+    <div class="col-xs-12 col-lg-6 summary-card">
+        <div class="card">
+          <div class="card-header">
+            脈搏
+          </div>
+          <div class="card-body">
+            <div id="pulse_div"></div>
+          </div>
+        </div>
+    </div>
+
+    <div class="col-xs-12 col-lg-6 summary-card">
+        <div class="card">
+          <div class="card-header">
+            體溫
+          </div>
+          <div class="card-body">
+            <div id="body_temp_div"></div>
+          </div>
+        </div>
+    </div>
+
+    <div class="col-xs-12 col-lg-6 summary-card">
+        <div class="card">
+          <div class="card-header">
+            呼吸
+          </div>
+          <div class="card-body">
+            <h4 class="card-title">Special title treatment</h4>
+            <p class="card-text">With supporting text below as a natural lead-in to additional content.</p>
+            <a href="#" class="btn btn-primary">Go somewhere</a>
+          </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

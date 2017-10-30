@@ -2,6 +2,7 @@
 from django.contrib.postgres.fields import ArrayField, JSONField
 from django.db.models.functions import Now
 from django.db import models
+import json
 
 
 class Profile(models.Model):
@@ -9,10 +10,7 @@ class Profile(models.Model):
         db_table = "employee"
 
     def __str__(self):
-        return "%i#員工 %s" % (self.id, self.name)
-
-    def __repr__(self):
-        return "<Employee %i: %s>" % (self.id, self.name)
+        return "%s#員工 %s" % (self.id, self.name)
 
     name = models.TextField()
     profile = JSONField(null=True, blank=True)
@@ -23,9 +21,8 @@ class Profile(models.Model):
         return self.nursing_schedule.extra(where=(
             "(LOWER(schedule) AT TIME ZONE 'Asia/Taipei')::Date = (current_timestamp AT TIME ZONE 'Asia/Taipei')::Date",))
 
-    @classmethod
-    def get_id_from_line_id(cls, line_id):
-        return LineBotIntegration.objects.filter(lineid=line_id).values_list('employee_id', flat=True).first()
+    def push_message(self, message):
+        LineMessageQueue(employee=self, scheduled_at=Now(), message=json.dumps({'M': 't', 't': message})).save()
 
 
 class LineBotIntegration(models.Model):

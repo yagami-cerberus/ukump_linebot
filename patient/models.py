@@ -197,3 +197,11 @@ class CareHistory(models.Model):
     employee = models.ForeignKey("employee.Profile", related_name='+', null=True)
     scheduled_at = models.DateField()
     answered_at = models.DateTimeField(auto_now_add=True)
+
+
+class UkumpGlobal(models.Model):
+    class Meta:
+        db_table = "ukump_global"
+
+    key = models.CharField(max_length=50, primary_key=True)
+    value = JSONField()
