@@ -45,7 +45,7 @@ def sync_patients():
     resp = conn.getresponse()
 
     assert resp.status == 200
-    bbody = resp.readall()
+    bbody = resp.read()
     patients_doc = json.loads(bbody.decode())
 
     if patients_doc:
@@ -71,7 +71,7 @@ def sync_patients():
     resp = conn.getresponse()
 
     assert resp.status == 200
-    bbody = resp.readall()
+    bbody = resp.read()
     patients_doc = json.loads(bbody.decode())
 
     if patients_doc:
@@ -99,7 +99,7 @@ def sync_customers():
     resp = conn.getresponse()
 
     assert resp.status == 200
-    bbody = resp.readall()
+    bbody = resp.read()
     customers_doc = json.loads(bbody.decode())
 
     if customers_doc:
@@ -139,7 +139,7 @@ def create_customer(conn, crm_customer_id):
     resp = conn.getresponse()
     assert resp.status == 200
 
-    bbody = resp.readall()
+    bbody = resp.read()
     doc = json.loads(bbody.decode())
 
     customer = Customer(profile={'agilrcrm': crm_customer_id})
@@ -196,11 +196,11 @@ def create_crm_ticket(source, title, body, emergency=False):
     try:
         assert resp.status == 200
 
-        bbody = resp.readall()
+        bbody = resp.read()
         doc = json.loads(bbody.decode())
         return doc['id'], 'https://ukump.agilecrm.com/#ticket/%s' % doc['id']
     except Exception:
-        print(resp.readall())
+        print(resp.read())
         raise
 
 
