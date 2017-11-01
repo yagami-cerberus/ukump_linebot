@@ -4,6 +4,7 @@ from django.db.models.functions import Now
 from django.core.cache import cache
 from django.db.models import signals
 from django.dispatch import receiver
+from django.utils import timezone
 from django.conf import settings
 from django.http import HttpResponse
 from django.urls import reverse
@@ -19,7 +20,7 @@ from linebot.models import (
 )
 
 from . import linebot_emergency, linebot_nursing, nursing_scheduler
-from patient.models import CareDairlyReport
+from patient.models import CareDailyReport
 from employee.models import Profile as Employee, LineMessageQueue as EmployeeLineMessageQueue
 from customer.models import LineMessageQueue as CustomerLineMessageQueue
 
@@ -199,10 +200,10 @@ def handle_location(event):
     pass
 
 
-@receiver([signals.post_save], sender=CareDairlyReport)
+@receiver([signals.post_save], sender=CareDailyReport)
 def save_care_dairly_report(sender, instance, created, **kwargs):
     if created:
-        review_url = settings.SITE_ROOT + reverse('patient_dairly_report', args=(instance.patient_id, instance.report_date, instance.report_period))
+        review_url = settings.SITE_ROOT + reverse('patient_daily_report', args=(instance.patient_id, instance.report_date, instance.report_period))
         message = json.dumps({
             'M': 'u',
             't': '%s 的日報正在等待審核' % instance.patient.name,
@@ -215,3 +216,13 @@ def save_care_dairly_report(sender, instance, created, **kwargs):
                 message=message).save()
     elif instance.reviewed_by:
         pass
+
+
+@receiver([signals.post_save], sender=EmployeeLineMessageQueue)
+@receiver([signals.post_save], sender=CustomerLineMessageQueue)
+def flush_message_while_saving(sender, instance, created, **kwargs):
+    if not isinstance(instance.scheduled_at, timezone.datetime) or instance.scheduled_at.tzinfo is None:
+        instance.refresh_from_db()
+
+    if instance.scheduled_at < timezone.now():
+        flush_message(instance)

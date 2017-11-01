@@ -37,8 +37,11 @@ def ignition_emergency(line_bot, event):
     patients = Patient.objects.none()
     if employee:
         patients |= employee.patients.all()
+        patients |= Patient.objects.filter(id__in=employee.nursing_schedule.today_schedule().values_list("patient_id", flat=True))
     if customer and customer_support_crm(customer):
         patients |= customer.patients.all()
+
+    patients = patients.distinct()
 
     if patients:
         l = len(patients)

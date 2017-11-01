@@ -99,13 +99,13 @@ def postback_nursing_begin(employee, session_data, value):
             t_night = create_datetime(now, NIGHT)
 
             if t_noon in schedule.schedule:
-                noon_url = settings.SITE_ROOT + reverse('patient_dairly_report', args=(schedule.patient_id, t_noon.date(), 12))
+                noon_url = settings.SITE_ROOT + reverse('patient_daily_report', args=(schedule.patient_id, t_noon.date(), 12))
                 EmployeeLineMessageQueue(employee=schedule.employee,
                                          scheduled_at=t_noon,
                                          message=json.dumps({'M': 'u', 't': '上午日報表', 'u': (('填寫', noon_url), )})).save()
 
             if t_night in schedule.schedule:
-                night_url = settings.SITE_ROOT + reverse('patient_dairly_report', args=(schedule.patient_id, t_noon.date(), 18))
+                night_url = settings.SITE_ROOT + reverse('patient_daily_report', args=(schedule.patient_id, t_noon.date(), 18))
                 EmployeeLineMessageQueue(employee=schedule.employee,
                                          scheduled_at=t_night,
                                          message=json.dumps({'M': 'u', 't': '下午日報表', 'u': (('填寫', night_url), )})).save()

@@ -1,24 +1,28 @@
 
+from django.views.decorators.csrf import csrf_exempt
 from django.utils.dateparse import parse_date
 from django.utils.timezone import now, localdate
+from django.utils.crypto import get_random_string
 from django.core.cache import cache
 from django.shortcuts import render, redirect
 from django.db.models import Q
-from django.contrib import messages
+# from django.contrib import messages
 from django.http import HttpResponse, Http404
 from django.conf import settings
 from django.urls import reverse
+from urllib.parse import quote
+import logging
 import json
 
 from ukumpcore.linebot_utils import require_lineid
 from ukumpcore import blackbox
+from employee.models import Profile as Employee
 from patient.models import (
     Profile as Patient,
     Manager as PatientManager,
     NursingSchedule,
     Guardian,
-    CareDairlyReport,
-    DEFAULT_REPORT_FORM)
+    CareDailyReport)
 from ukumpcore.linebot_utils import get_customer_id_from_lineid, get_employee_id_from_lineid, get_employee_from_lineid, get_customer_from_lineid
 from ukumpcore.linebot_handler import flush_messages_queue
 from ukumpcore.crm.agile import create_crm_ticket, get_patient_crm_url
@@ -41,9 +45,11 @@ EMERGENCY_REPLOY_EMPLOYEE_TEMPLATE = """案件 %(case_name)s 緊急通報！
 CRM Ticket
 %(ticket_url)s"""
 
+logger = logging.getLogger('ukump')
+
 
 @require_lineid
-def dairy_schedule(request):
+def daily_schedule(request):
     line_id = request.session['line_id']
     if "pid" in request.GET:
         query = Patient.objects.filter(pk=request.GET['pid'])
@@ -114,8 +120,71 @@ def dairy_reports(request):
     return render(request, 'patient/list_reports.html', {"patients": patients})
 
 
+@csrf_exempt
+def form_postback(request):
+    if request.method == 'POST':
+        try:
+            doc = json.loads(request.body.decode())
+            token = '_daily_report_cache:%s' % doc['response']['payload'].pop('日報表案例 (請勿更改)', ';').split(';', 1)[-1]
+            employee_id, patient_id, report_date, report_period = cache.get(token).split(':')
+            cache.delete(token)
+
+            report_body = doc['response']['payload']
+            report_body['_meta'] = {
+                'edit_url': doc['response']['editUrl'],
+                'google_id': doc['response']['id'],
+                'timestamp': doc['response']['timestamp']
+            }
+        except (ValueError, KeyError, TypeError):
+            logger.error('invaild form postback: %s', request.body)
+            return HttpResponse('', content_type='text/plain')
+        except AttributeError:
+            logger.info('cache get null')
+            return HttpResponse('', content_type='text/plain')
+
+        employee = Employee.objects.get(id=employee_id)
+        patient = Patient.objects.get(id=patient_id)
+
+        report, created = CareDailyReport.objects.get_or_create(
+            patient_id=patient_id, report_date=report_date, report_period=report_period,
+            defaults={'filled_by_id': employee_id, 'catalog': 'dailyreport', 'report': report_body})
+        if created:
+            employee.push_message('%s 在 %s 的%s間日報表已經收到' % (patient.name, report_date, report.period_label()))
+            return HttpResponse('', content_type='text/plain')
+        else:
+            if report_body['_meta']['timestamp'] == report.report.get('_meta', {}).get('timestamp'):
+                return HttpResponse('', content_type='text/plain')
+
+            if report.reviewed_by:
+                if patient.manager_set.filter(employee=employee, relation='照護經理'):
+                    report.reviewed_by = employee
+                    report.report = report_body
+                    report.save()
+                    employee.push_message('%s 在 %s 的%s間日報表已經審核完成 (已更新)。' % (patient.name, report_date, report.period_label()))
+                    return HttpResponse('', content_type='text/plain')
+                else:
+                    employee.push_message('%s 在 %s 的%s間日報表已經鎖定，請聯絡照護經理。' % (patient.name, report_date, report.period_label()))
+                    return HttpResponse('', content_type='text/plain')
+            else:
+                if patient.manager_set.filter(employee=employee, relation='照護經理'):
+                    report.reviewed_by = employee
+                    report.report = report_body
+                    report.save()
+                    employee.push_message('%s 在 %s 的%s間日報表已經審核完成。' % (patient.name, report_date, report.period_label()))
+                    return HttpResponse('', content_type='text/plain')
+                else:
+                    report.filled_by = employee
+                    report.report = report_body
+                    report.save()
+                    employee.push_message('%s 在 %s 的%s間日報表已經更新。' % (patient.name, report_date, report.period_label()))
+                    return HttpResponse('', content_type='text/plain')
+    else:
+        logger.error('invaild form postback action: %s', request.method)
+        return HttpResponse('', content_type='text/plain')
+
+
 @require_lineid
-class DairyReport(object):
+class DailyReport(object):
     def __new__(cls, request, patient_id, date, period):
         line_id = request.session['line_id']
         if period not in ('12', '18'):
@@ -128,103 +197,35 @@ class DairyReport(object):
             raise Http404
 
     @classmethod
-    def get(cls, request, line_id, patient_id, report_date, report_period):
-        employee_id = get_employee_id_from_lineid(line_id)
-        query = CareDairlyReport.objects.filter(patient_id=patient_id, report_date=report_date, report_period=report_period)
+    def redirect_for_edit(cls, employee_id, patient, report_date, report_period, edit_url=None):
+        token = get_random_string(32)
+        cache.set('_daily_report_cache:%s' % token, '%s:%s:%s:%s' % (employee_id, patient.id, report_date, report_period), 3600)
 
-        if CareDairlyReport.is_manager(employee_id, patient_id):
-            # Handle manager view
-            report = query.first()
-            if report:
-                return render(request, 'patient/dairly_report_edit.html', {
-                    'date': report_date,
-                    'form': report.to_form(), 'patient': Patient.objects.get(pk=patient_id),
-                    'mode': 'review' if (now() - report.updated_at).seconds < TIME_12HR or not report.reviewed_by_id else 'readonly',
-                    'reviewed': report.reviewed_by_id is not None})
-
-        if CareDairlyReport.is_nurse(employee_id, patient_id, report_date):
-            report = query.first()
-            if report:
-                return render(request, 'patient/dairly_report_edit.html', {
-                    'date': report_date,
-                    'form': report.to_form(), 'patient': Patient.objects.get(pk=patient_id),
-                    'mode': 'edit' if not report.reviewed_by and (now() - report.created_at).seconds < TIME_12HR else 'readonly'})
-            elif report_date == localdate():
-                return render(request, 'patient/dairly_report_edit.html', {
-                    'date': report_date,
-                    'form': DEFAULT_REPORT_FORM(), 'patient': Patient.objects.get(pk=patient_id),
-                    'mode': 'edit'})
-            else:
-                raise Http404
-
-        customer_id = get_customer_id_from_lineid(line_id)
-        if CareDairlyReport.is_guardian(customer_id, patient_id):
-            # Handle customer view
-            report = query.first()
-            if report:
-                return render(request, 'patient/dairly_report_edit.html', {
-                    'date': report_date,
-                    'form': report.to_form(), 'patient': Patient.objects.get(pk=patient_id),
-                    'mode': 'readonly'})
-        raise Http404
+        if edit_url:
+            return redirect(edit_url + '&%s=%s;%s' % (settings.DAILY_REPORT_KEY_PARAM, quote(patient.name), quote(token)))
+        else:
+            return redirect(settings.DAILY_REPORT_URL % ('%s=%s;%s' % (settings.DAILY_REPORT_KEY_PARAM, quote(patient.name), quote(token))))
 
     @classmethod
-    def post(cls, request, line_id, patient_id, report_date, report_period):
-        query = CareDairlyReport.objects.filter(patient_id=patient_id, report_date=report_date, report_period=report_period)
+    def get(cls, request, line_id, patient_id, report_date, report_period):
         employee_id = get_employee_id_from_lineid(line_id)
+        patient = Patient.objects.get(id=patient_id)
+        report = CareDailyReport.objects.filter(patient_id=patient_id, report_date=report_date, report_period=report_period).first()
 
-        if CareDairlyReport.is_manager(employee_id, patient_id):
-            # Handle manager view
-            report = query.first()
-            if report:
-                form = report.report_form(request.POST)
-                if form.is_valid():
-                    report.from_form(form)
-                    report.reviewed_by_id = employee_id
-                    report.save()
-                    messages.info(request, '%s 審核已完成' % report.patient.name)
-                    return redirect(reverse('patient_dairly_reports'))
-                else:
-                    messages.error(request, '欄位未填寫 %s' % form.errors)
-                    return render(request, 'patient/dairly_report_edit.html', {
-                        'date': report_date,
-                        'form': form, 'patient': Patient.objects.get(pk=patient_id),
-                        'mode': 'readonly'})
-
-        if CareDairlyReport.is_nurse(employee_id, patient_id, report_date):
-            report = query.first()
-            if report:
-                if report.reviewed_by_id:
-                    messages.info(request, '%s 已審核完成' % report.patient.name)
-                    return redirect(reverse('patient_dairly_reports'))
-                else:
-                    form = report.report_form(request.POST)
-                    if form.is_valid():
-                        report.from_form(form)
-                        report.filled_by_id = employee_id
-                        report.save()
-                        messages.info(request, '%s 已提交' % report.patient.name)
-                        return redirect(reverse('patient_dairly_reports'))
-                    else:
-                        messages.error(request, '欄位未填寫 %s' % form.errors)
-                        return render(request, 'patient/dairly_report_edit.html', {
-                            'date': report_date,
-                            'form': form, 'patient': Patient.objects.get(pk=patient_id),
-                            'mode': 'readonly'})
+        if report:
+            if report.reviewed_by_id is None:
+                if patient.manager_set.filter(employee_id=employee_id, relation='照護經理') or \
+                        CareDailyReport.is_nurse(employee_id, patient_id, report_date):
+                    edit_url = report.report['_meta']['edit_url']
+                    return cls.redirect_for_edit(employee_id, patient, report_date, report_period, edit_url)
             else:
-                form = DEFAULT_REPORT_FORM(request.POST)
-                if form.is_valid():
-                    report = CareDairlyReport(patient_id=patient_id, report_date=report_date, report_period=report_period, filled_by_id=employee_id)
-                    report.from_form(form)
-                    report.save()
-                    messages.info(request, '%s 已提交' % report.patient.name)
-                    return redirect(reverse('patient_dairly_reports'))
-                else:
-                    messages.error(request, '欄位未填寫 %s' % form.errors)
-                    return render(request, 'patient/dairly_report_edit.html', {
-                        'date': report_date,
-                        'form': form, 'patient': Patient.objects.get(pk=patient_id),
-                        'mode': 'readonly'})
+                if patient.manager_set.filter(employee_id=employee_id, relation='照護經理') and \
+                        (now() - report.updated_at).seconds < TIME_12HR:
+                    edit_url = report.report['_meta']['edit_url']
+                    return cls.redirect_for_edit(employee_id, patient, report_date, report_period, edit_url)
+        else:
+            if CareDailyReport.is_nurse(employee_id, patient_id, report_date) and report_date == localdate():
+                return cls.redirect_for_edit(employee_id, patient, report_date, report_period)
             raise Http404
 
 
@@ -250,6 +251,7 @@ def emergency(request, patient_id):
 
     if request.method == 'GET':
         return render(request, 'patient/emergency.html', {"patient": patient, "role": role, "source": source})
+
     elif request.method == 'POST':
         title = 'LINE 緊急通報案例 %s' % patient.name
         context = {

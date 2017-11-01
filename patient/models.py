@@ -1,11 +1,12 @@
 
 from django.contrib.postgres.fields import DateTimeRangeField
 from django.contrib.postgres.fields import JSONField
+from django.utils.crypto import get_random_string
+from django.db.models import signals
+from django.dispatch import receiver
 from django.db import models
 from care.models import CourseQuestion
-from .forms_dairy_report import DairyReportFormV1
-
-DEFAULT_REPORT_FORM = DairyReportFormV1
+# from .forms_dairy_report import DairyReportFormV1
 
 
 class ReportManager(models.Manager):
@@ -128,17 +129,17 @@ class NursingSchedule(models.Model):
         return "%s#班表 %s/%s@%s" % (self.id, self.patient, self.employee, self.schedule.lower)
 
 
-class CareDairlyReport(models.Model):
+class CareDailyReport(models.Model):
     class Meta:
-        db_table = 'patient_dairly_report'
+        db_table = 'patient_daily_report'
         unique_together = ('patient', 'report_date', 'report_period')
 
     objects = ReportManager()
-
     patient = models.ForeignKey(Profile)
+    token = models.CharField(max_length=64, null=True, blank=True)
+    catalog = models.TextField()
     report_date = models.DateField()
     report_period = models.IntegerField()
-    report_version = models.IntegerField(default=1)
     report = JSONField()
 
     filled_by = models.ForeignKey("employee.Profile", related_name="+")
@@ -162,27 +163,32 @@ class CareDairlyReport(models.Model):
     def is_guardian(cls, customer_id, patient_id):
         return customer_id and Guardian.objects.filter(patient_id=patient_id, customer_id=customer_id).exists()
 
-    @property
-    def report_form(self):
-        return DEFAULT_REPORT_FORM
+    # @property
+    # def report_form(self):
+    #     return DEFAULT_REPORT_FORM
 
     def period_label(self):
-        return self.get_period_label(self.report_period)
-
-    def to_form(self):
-        if self.report:
-            reverse_mapping = {}
-            for field_id, field in self.report_form.declared_fields.items():
-                reverse_mapping[field_id] = self.report.get(field.label)
-            return self.report_form(initial=reverse_mapping)
+        if isinstance(self.report_period, str) and self.report_period.isdigit():
+            return self.get_period_label(int(self.report_period))
+        elif isinstance(self.report_period, int):
+            return self.get_period_label(self.report_period)
         else:
-            return self.report_form()
+            return ""
 
-    def from_form(self, form):
-        reverse_mapping = {}
-        for field_id, field in self.report_form.declared_fields.items():
-            reverse_mapping[field.label] = form.cleaned_data[field_id]
-        self.report = reverse_mapping
+    # def to_form(self):
+    #     if self.report:
+    #         reverse_mapping = {}
+    #         for field_id, field in self.report_form.declared_fields.items():
+    #             reverse_mapping[field_id] = self.report.get(field.label)
+    #         return self.report_form(initial=reverse_mapping)
+    #     else:
+    #         return self.report_form()
+
+    # def from_form(self, form):
+    #     reverse_mapping = {}
+    #     for field_id, field in self.report_form.declared_fields.items():
+    #         reverse_mapping[field.label] = form.cleaned_data[field_id]
+    #     self.report = reverse_mapping
 
 
 class CareHistory(models.Model):
@@ -205,3 +211,9 @@ class UkumpGlobal(models.Model):
 
     key = models.CharField(max_length=50, primary_key=True)
     value = JSONField()
+
+
+@receiver([signals.pre_save], sender=CareDailyReport)
+def save_care_dairly_report(sender, instance, **kwargs):
+    if not instance.id and not instance.token:
+        instance.token = get_random_string(32)

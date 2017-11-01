@@ -28,7 +28,7 @@ urlpatterns = [
     url(r'^customer/association$', customer_view.line_association, name='line_association'),
 
     # 每日行程
-    url(r'^patient/dairy_schedule$', patient_view.dairy_schedule, name='patient_main'),
+    url(r'^patient/daily_schedule$', patient_view.daily_schedule, name='patient_main'),
 
     # 緊急通報
     url(r'^patient/(?P<patient_id>[0-9]+)/emergency', patient_view.emergency, name='patient_emergency'),
@@ -37,10 +37,11 @@ urlpatterns = [
     url(r'^patient/(?P<patient_id>[0-9]+)/summary/(?P<catalog>\d{1})/$', patient_view.summary, name='patient_summary'),
 
     # 檢視日報表清單
-    url(r'^patient/dairy_reports$', patient_view.dairy_reports, name='patient_dairly_reports'),
+    # url(r'^patient/daily_reports$', patient_view.daily_reports, name='patient_dairly_reports'),
 
-    # 檢視/填寫日報表
-    url(r'^patient/dairy_report/(?P<patient_id>[0-9]+)/(?P<date>\d{4}-\d{2}-\d{2})/(?P<period>\d{2})/$', patient_view.DairyReport, name='patient_dairly_report'),
+    # 檢視日報表
+    url(r'^patient/(?P<patient_id>[0-9]+)/report/daily/(?P<date>\d{4}-\d{2}-\d{2})/(?P<period>\d{2})/$', patient_view.DailyReport, name='patient_daily_report'),
+    url(r'^patients/form/postback', patient_view.form_postback),
 
     # 聯絡人清單
     url(r'^patient/members$', patient_view.list_members, name='patient_list_members'),
