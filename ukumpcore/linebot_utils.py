@@ -1,14 +1,19 @@
 
+from linebot.models import PostbackTemplateAction, CarouselColumn
 from django.shortcuts import redirect
 from django.utils import timezone
 from django.urls import reverse
-
+from collections import namedtuple
 from urllib.parse import quote
 import pytz
+import json
 
+from patient.models import Profile as Patient
 from employee.models import Profile as Employee, LineBotIntegration as EmployeeLineBotIntegration
 from customer.models import Profile as Customer, LineBotIntegration as CustomerLineBotIntegration
 
+Cases = namedtuple('Cases', ['owner', 'patients'])
+Patients = namedtuple('Patients', ['manager', 'nurse', 'customer'])
 fix_tz = pytz.timezone('Etc/GMT-8')
 
 
@@ -58,6 +63,45 @@ def get_customer_from_lineid(lineid):
 def get_customer(event):
     if event.source.type == "user":
         return get_customer_from_lineid(event.source.user_id)
+
+
+def get_patients(event):
+    employee = get_employee(event)
+    customer = get_customer(event)
+
+    if employee:
+        manager_cases = employee.patients.all()
+        nursing_cases = Patient.objects.filter(id__in=employee.nursing_schedule.today_schedule().values_list("patient_id", flat=True))
+    else:
+        manager_cases = nursing_cases = Patient.objects.none()
+
+    customer_cases = customer.patients.all() if customer else Patient.objects.none()
+
+    return Patients(
+        Cases(employee, manager_cases),
+        Cases(employee, nursing_cases),
+        Cases(customer, customer_cases)
+    )
+
+
+def generate_patients_card(title, text, params, patients, label=lambda x: x.name):
+    l = len(patients)
+    columns = []
+    for i in range(0, l, 3):
+        actions = []
+        for j in range(i, min(i + 3, l)):
+            p = patients[j]
+            data = params.copy()
+            data['V'] = p.id
+            actions.append(PostbackTemplateAction(
+                label(p),
+                json.dumps(data)))
+        while len(actions) != 3:
+            actions.append(PostbackTemplateAction(
+                '-',
+                '{"T": ""}'))
+        columns.append(CarouselColumn(title=title, text=text, actions=actions))
+    return columns
 
 
 def localtime():

@@ -58,7 +58,7 @@ def prepare_dairly_card(patient, date):
 def request_cards(line_bot, event):
     customer = get_customer(event)
     for patient in customer.patients.all():
-        date = patient.caredairlyreport_set.order_by("-report_date").values_list("report_date", flat=True).first()
+        date = patient.caredailyreport_set.order_by("-report_date").values_list("report_date", flat=True).first()
         if date:
             prepare_dairly_card(patient, date)
 

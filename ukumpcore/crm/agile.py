@@ -123,6 +123,8 @@ def update_patient(conn, doc):
         patient.birthday = time.strftime('%Y-%m-%d', time.gmtime(int(attrs['Date of Birth'])))
     if 'Gender' in attrs:
         patient.extend['sex'] = attrs['Gender']
+    if 'Appellation' in attrs:
+        patient.extend['title'] = attrs['Appellation']
     patient.save()
 
     if 'Contact Window' in attrs:
@@ -130,8 +132,12 @@ def update_patient(conn, doc):
             c = Customer.objects.filter(profile__agilrcrm=crm_customer_id).order_by('id').first()
             if not c:
                 c = create_customer(conn, crm_customer_id)
-            if not patient.guardian_set.filter(customer=c):
-                patient.guardian_set.create(customer=c, relation="Master")
+            g = patient.guardian_set.filter(customer=c).first()
+            if g:
+                g.relation = patient.extend.get('title', '未填寫')
+                g.save()
+            else:
+                patient.guardian_set.create(customer=c, relation=patient.extend.get('title', '未填寫'))
 
 
 def create_customer(conn, crm_customer_id):

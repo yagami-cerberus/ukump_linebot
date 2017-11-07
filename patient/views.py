@@ -89,7 +89,7 @@ def summary(request, patient_id, catalog):
         return render(request, 'patient/summary_%s.html' % catalog, {
             "members": ((label, members[label]) for label in members_list if label in members),
             "patient": patient, "catalog": catalog,
-            "last_report": patient.caredairlyreport_set.order_by("-report_date", "-report_period").first(),
+            "last_report": patient.caredailyreport_set.order_by("-report_date", "-report_period").first(),
         })
     else:
         raise Http404
@@ -125,7 +125,7 @@ def form_postback(request):
     if request.method == 'POST':
         try:
             doc = json.loads(request.body.decode())
-            token = '_daily_report_cache:%s' % doc['response']['payload'].pop('日報表案例 (請勿更改)', ';').split(';', 1)[-1]
+            token = '_daily_report_cache:%s' % doc['response']['payload'].pop(settings.DAILY_REPORT_FORM_SESSION_KEY, ';').split(';', 1)[-1]
             employee_id, patient_id, report_date, report_period = cache.get(token).split(':')
             cache.delete(token)
 
@@ -201,10 +201,14 @@ class DailyReport(object):
         token = get_random_string(32)
         cache.set('_daily_report_cache:%s' % token, '%s:%s:%s:%s' % (employee_id, patient.id, report_date, report_period), 3600)
 
+        params = settings.DAILY_REPORT_PARAMS % {
+            'session': '%s;%s' % (quote(patient.name), quote(token)),
+            'date': quote(report_date.strftime('%Y-%m-%d'))
+        }
         if edit_url:
-            return redirect(edit_url + '&%s=%s;%s' % (settings.DAILY_REPORT_KEY_PARAM, quote(patient.name), quote(token)))
+            return redirect('%s&%s' % (edit_url, params))
         else:
-            return redirect(settings.DAILY_REPORT_URL % ('%s=%s;%s' % (settings.DAILY_REPORT_KEY_PARAM, quote(patient.name), quote(token))))
+            return redirect(settings.DAILY_REPORT_URL % params)
 
     @classmethod
     def get(cls, request, line_id, patient_id, report_date, report_period):
@@ -303,7 +307,7 @@ def dairy_card(request, card):
     session = json.loads(c)
     patient = Patient.objects.get(pk=session['p'])
     date = parse_date(session['d'])
-    reports = patient.caredairlyreport_set.filter(report_date=date)
+    reports = patient.caredailyreport_set.filter(report_date=date)
     img = blackbox.cards[int(card)](patient, date, reports)
     resp = HttpResponse(content_type="image/png")
     resp["Content-Disposition"] = "filename=\"card.png\""

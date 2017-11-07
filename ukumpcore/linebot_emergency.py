@@ -1,5 +1,5 @@
 
-from linebot.models import TemplateSendMessage, TextSendMessage, ButtonsTemplate, CarouselTemplate, PostbackTemplateAction, URITemplateAction, CarouselColumn
+from linebot.models import TemplateSendMessage, TextSendMessage, ButtonsTemplate, CarouselTemplate, PostbackTemplateAction, URITemplateAction
 from django.core.cache import cache
 from django.conf import settings
 from django.urls import reverse
@@ -31,38 +31,39 @@ TEMPLATE_TRANSFER_ACTION = [
 
 
 def ignition_emergency(line_bot, event):
-    employee = utils.get_employee(event)
-    customer = utils.get_customer(event)
+    result = utils.get_patients(event)
 
-    patients = Patient.objects.none()
-    if employee:
-        patients |= employee.patients.all()
-        patients |= Patient.objects.filter(id__in=employee.nursing_schedule.today_schedule().values_list("patient_id", flat=True))
-    if customer and customer_support_crm(customer):
-        patients |= customer.patients.all()
+    count = sum(map(lambda x: x.patients.count(), result))
 
-    patients = patients.distinct()
+    if count > 1:
+        columns = []
 
-    if patients:
-        l = len(patients)
-        if l == 1:
-            select_patient(line_bot, event, patient=patients[0])
-        else:
-            columns = []
-            for i in range(0, l, 4):
-                actions = []
-                for j in range(i, min(i + 4, l)):
-                    p = patients[j]
-                    actions.append(PostbackTemplateAction(
-                        p.name,
-                        json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_INIGITION, 'V': p.id})))
-                columns.append(CarouselColumn(text="請選擇緊急通報對象", actions=actions))
-            line_bot.reply_message(event.reply_token, TemplateSendMessage(
-                alt_text="請選擇緊急通報對象",
-                template=CarouselTemplate(columns=columns)))
-    elif employee:
+        if result.manager.patients:
+            columns += utils.generate_patients_card(
+                '照護經理 %s' % result.manager.owner.name, '請選擇案例',
+                {'S': '', 'T': T_EMERGENCY, 'stage': STAGE_INIGITION},
+                result.manager.patients)
+        if result.nurse.patients:
+            columns += utils.generate_patients_card(
+                '照護員 %s' % result.nurse.owner.name, '請選擇案例',
+                {'S': '', 'T': T_EMERGENCY, 'stage': STAGE_INIGITION},
+                result.nurse.patients)
+        if result.customer.patients:
+            columns += utils.generate_patients_card(
+                '家屬 %s' % result.customer.owner.name, '請選擇案例',
+                {'S': '', 'T': T_EMERGENCY, 'stage': STAGE_INIGITION},
+                result.customer.patients)
+        line_bot.reply_message(event.reply_token, TemplateSendMessage(
+            alt_text="請選擇緊急通報對象",
+            template=CarouselTemplate(columns=columns)))
+    elif count == 1:
+        for c in result:
+            if c.patients:
+                select_patient(line_bot, event, patient=c.patients.first())
+                return
+    elif result.manager.owner:
         line_bot.reply_message(event.reply_token, TextSendMessage(text="無法取得可通報的照護對象，請直接與照護經理聯絡。"))
-    elif customer:
+    elif result.customer.owner:
         line_bot.reply_message(event.reply_token, TextSendMessage(text="無法取得可通報的照護對象，請直接與照護經理聯絡。"))
     else:
         line_bot.reply_message(event.reply_token, TextSendMessage(text="請先註冊會員。"))

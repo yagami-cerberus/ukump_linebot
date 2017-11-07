@@ -19,7 +19,7 @@ from linebot.models import (
     TemplateSendMessage, ButtonsTemplate, CarouselTemplate, CarouselColumn, URITemplateAction
 )
 
-from . import linebot_emergency, linebot_nursing, nursing_scheduler
+from . import linebot_emergency, linebot_nursing, linebot_report, linebot_simplequery, nursing_scheduler
 from patient.models import CareDailyReport
 from employee.models import Profile as Employee, LineMessageQueue as EmployeeLineMessageQueue
 from customer.models import LineMessageQueue as CustomerLineMessageQueue
@@ -171,6 +171,10 @@ def handle_postback(event):
         linebot_nursing.contect_phone(line_bot, event, resp)
     elif resp["T"] == linebot_emergency.T_EMERGENCY:
         linebot_emergency.handle_postback(line_bot, event, resp)
+    elif resp["T"] == linebot_report.T_REPORT:
+        linebot_report.handle_postback(line_bot, event, resp)
+    elif resp["T"] == linebot_simplequery.T_SIMPLE_QUERY:
+        linebot_simplequery.handle_postback(line_bot, event, resp)
 
 
 @handler.add(MessageEvent, message=TextMessage)
@@ -183,6 +187,12 @@ def handle_message(event):
         linebot_emergency.ignition_emergency(line_bot, event)
     elif event.message.text == '最新日報':
         linebot_nursing.request_cards(line_bot, event)
+    elif event.message.text == '檔案櫃':
+        linebot_report.ignition_report(line_bot, event)
+    elif event.message.text == '課程查詢':
+        linebot_simplequery.ignition(line_bot, event, linebot_simplequery.CATALOG_COURSE)
+    elif event.message.text == '聯絡照護團隊':
+        linebot_simplequery.ignition(line_bot, event, linebot_simplequery.CATALOG_CONTECT)
     elif event.message.text == '1':
         flush_messages_queue()
     elif event.message.text == '2':
