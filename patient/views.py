@@ -227,6 +227,10 @@ class DailyReport(object):
                         (now() - report.updated_at).seconds < TIME_12HR:
                     edit_url = report.report['_meta']['edit_url']
                     return cls.redirect_for_edit(employee_id, patient, report_date, report_period, edit_url)
+                elif CareDailyReport.is_nurse(employee_id, patient_id, report_date):
+                    return HttpResponse('此份報表已經鎖定', content_type='text/plain')
+                else:
+                    raise Http404
         else:
             if CareDailyReport.is_nurse(employee_id, patient_id, report_date) and report_date == localdate():
                 return cls.redirect_for_edit(employee_id, patient, report_date, report_period)
