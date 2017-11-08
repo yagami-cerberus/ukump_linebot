@@ -60,6 +60,8 @@ def select_patient(line_bot, event, value=None, patient=None, role=None):
     if not patient:
         patient = Patient.objects.get(pk=value)
 
+    now = timezone.now().astimezone(nursing_scheduler.fix_tz)
+
     if role == 'm':
         actions = []
 
@@ -79,7 +81,6 @@ def select_patient(line_bot, event, value=None, patient=None, role=None):
             template=ButtonsTemplate(title='%s 個案報告' % patient.name, text='請選擇報告', actions=actions)))
 
     elif role == 'n':
-        now = timezone.now().astimezone(nursing_scheduler.fix_tz)
         t_noon = nursing_scheduler.create_datetime(now, nursing_scheduler.NOON)
         t_night = nursing_scheduler.create_datetime(now, nursing_scheduler.NIGHT)
 
