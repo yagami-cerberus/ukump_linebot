@@ -105,7 +105,10 @@ def get_ints(reports, key):
 
 
 def _render_baselayout(img, draw, name, title, date, catalog):
-    os.path.basename(__file__)
+    if not name:
+        name = " "
+    if not title:
+        title = " "
 
     bg = Image.open(os.path.join(MEDIA_ROOT, "card-%s.png" % catalog))
     img.paste(bg, (0, img.height - bg.height))
