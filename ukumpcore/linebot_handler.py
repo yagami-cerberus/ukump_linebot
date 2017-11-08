@@ -150,12 +150,12 @@ def handle_postback(event):
         # customer_id = None
 
         if session_data.get("employee_id") == employee.id:
-            if resp["T"] == nursing_scheduler.T_CARE_QUESTION_POSTBACK:
+            if resp['T'] == nursing_scheduler.T_CARE_QUESTION_POSTBACK:
                 schedule, cont = nursing_scheduler.postback_nursing_question(employee, session_data, value)
                 line_bot.reply_message(event.reply_token, TextSendMessage(text="問題 %s 已歸檔" % session_data['data']['t']))
                 if cont:
                     nursing_scheduler.schedule_nursing_question(schedule)
-            elif resp["T"] == nursing_scheduler.T_NUSRING_BEGIN:
+            elif resp['T'] == nursing_scheduler.T_NUSRING_BEGIN:
                 nursing_scheduler.postback_nursing_begin(employee, session_data, value)
                 if value:
                     line_bot.reply_message(event.reply_token, TextSendMessage(text="行程已確認"))
@@ -165,15 +165,17 @@ def handle_postback(event):
                 raise LineMessageError("無效的回應訊息 BAD_T")
         else:
             line_bot.reply_message(event.reply_token, TextSendMessage(text="無效的回應訊息 (C)"))
-    elif resp["T"] == nursing_scheduler.T_CONTECT:
+    elif resp['T'] == linebot_nursing.T_NURSING:
+        linebot_nursing.handle_postback(line_bot, event, resp)
+    elif resp['T'] == nursing_scheduler.T_CONTECT:
         linebot_nursing.contect_manager(line_bot, event, resp)
-    elif resp["T"] == linebot_nursing.T_PHONE:
+    elif resp['T'] == linebot_nursing.T_PHONE:
         linebot_nursing.contect_phone(line_bot, event, resp)
-    elif resp["T"] == linebot_emergency.T_EMERGENCY:
+    elif resp['T'] == linebot_emergency.T_EMERGENCY:
         linebot_emergency.handle_postback(line_bot, event, resp)
-    elif resp["T"] == linebot_report.T_REPORT:
+    elif resp['T'] == linebot_report.T_REPORT:
         linebot_report.handle_postback(line_bot, event, resp)
-    elif resp["T"] == linebot_simplequery.T_SIMPLE_QUERY:
+    elif resp['T'] == linebot_simplequery.T_SIMPLE_QUERY:
         linebot_simplequery.handle_postback(line_bot, event, resp)
 
 

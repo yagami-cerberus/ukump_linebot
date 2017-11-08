@@ -27,9 +27,6 @@ urlpatterns = [
 
     url(r'^customer/association$', customer_view.line_association, name='line_association'),
 
-    # 每日行程
-    url(r'^patient/daily_schedule$', patient_view.daily_schedule, name='patient_main'),
-
     # 緊急通報
     url(r'^patient/(?P<patient_id>[0-9]+)/emergency', patient_view.emergency, name='patient_emergency'),
 
@@ -42,9 +39,6 @@ urlpatterns = [
     # 檢視日報表
     url(r'^patient/(?P<patient_id>[0-9]+)/report/daily/(?P<date>\d{4}-\d{2}-\d{2})/(?P<period>\d{2})/$', patient_view.DailyReport, name='patient_daily_report'),
     url(r'^patients/form/postback', patient_view.form_postback),
-
-    # 聯絡人清單
-    url(r'^patient/members$', patient_view.list_members, name='patient_list_members'),
 
     # 卡片
     url(r'^patient/card/(?P<card>\d{1})/$', patient_view.dairy_card, name='patient_card'),
