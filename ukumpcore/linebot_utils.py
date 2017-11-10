@@ -1,5 +1,6 @@
 
 from linebot.models import PostbackTemplateAction, CarouselColumn
+from django.contrib.auth import get_user_model
 from django.shortcuts import redirect
 from django.utils import timezone
 from django.urls import reverse
@@ -115,3 +116,7 @@ def require_lineid(fn):
         else:
             return fn(request, *args, **kw)
     return wrapper
+
+
+def is_system_admin(event):
+    model = get_user_model()

@@ -34,12 +34,12 @@ def ignition_report(line_bot, event):
 
             if result.manager.patients:
                 columns += utils.generate_patients_card(
-                    '照護經理 %s' % result.manager.owner.name, '請選擇案例',
+                    '照護經理 %s' % result.manager.owner.name, '請選擇個案',
                     {'S': '', 'T': T_REPORT, 'stage': STAGE_INIGITION, 'r': 'm'},
                     result.manager.patients, label=manager_patient_label)
             if result.nurse.patients:
                 columns += utils.generate_patients_card(
-                    '照護員 %s' % result.nurse.owner.name, '請選擇案例',
+                    '照護員 %s' % result.nurse.owner.name, '請選擇個案',
                     {'S': '', 'T': T_REPORT, 'stage': STAGE_INIGITION, 'r': 'n'},
                     result.nurse.patients)
             line_bot.reply_message(event.reply_token, TemplateSendMessage(

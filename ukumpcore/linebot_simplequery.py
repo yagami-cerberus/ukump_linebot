@@ -22,21 +22,21 @@ def ignition(line_bot, event, catalog):
 
         if result.manager.patients:
             columns += utils.generate_patients_card(
-                '照護經理 %s' % result.manager.owner.name, '請選擇案例',
+                '照護經理 %s' % result.manager.owner.name, '請選擇個案',
                 {'S': '', 'T': T_SIMPLE_QUERY, 'stage': STAGE_INIGITION, 'catalog': catalog},
                 result.manager.patients)
         if result.nurse.patients:
             columns += utils.generate_patients_card(
-                '照護員 %s' % result.nurse.owner.name, '請選擇案例',
+                '照護員 %s' % result.nurse.owner.name, '請選擇個案',
                 {'S': '', 'T': T_SIMPLE_QUERY, 'stage': STAGE_INIGITION, 'catalog': catalog},
                 result.nurse.patients)
         if result.customer.patients:
             columns += utils.generate_patients_card(
-                '家屬 %s' % result.customer.owner.name, '請選擇案例',
+                '家屬 %s' % result.customer.owner.name, '請選擇個案',
                 {'S': '', 'T': T_SIMPLE_QUERY, 'stage': STAGE_INIGITION, 'catalog': catalog},
                 result.customer.patients)
         line_bot.reply_message(event.reply_token, TemplateSendMessage(
-            alt_text="請選擇案例",
+            alt_text="請選擇個案",
             template=CarouselTemplate(columns=columns)))
     elif count == 1:
         for c in result:
@@ -44,9 +44,9 @@ def ignition(line_bot, event, catalog):
                 select_patient(line_bot, event, patient=c.patients.first(), catalog=catalog)
                 return
     elif result.manager.owner:
-        line_bot.reply_message(event.reply_token, TextSendMessage(text="無法取得案例清單，請直接與照護經理聯絡。"))
+        line_bot.reply_message(event.reply_token, TextSendMessage(text="無法取得個案清單，請直接與照護經理聯絡。"))
     elif result.customer.owner:
-        line_bot.reply_message(event.reply_token, TextSendMessage(text="無法取得案例清單，請直接與照護經理聯絡。"))
+        line_bot.reply_message(event.reply_token, TextSendMessage(text="無法取得個案清單，請直接與照護經理聯絡。"))
     else:
         line_bot.reply_message(event.reply_token, TextSendMessage(text="請先註冊會員。"))
 

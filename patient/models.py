@@ -41,7 +41,7 @@ class Profile(models.Model):
                                       related_name='patients')
 
     def __str__(self):
-        return "%s#病患 %s" % (self.id, self.name)
+        return "%s#個案 %s" % (self.id, self.name)
 
 
 class Guardian(models.Model):
@@ -73,7 +73,7 @@ class CourseSchedule(models.Model):
     weekly_mask = models.IntegerField()
 
     def __str__(self):
-        return "%s#案例課程 %s" % (self.id, self.table.name)
+        return "%s#個案課程 %s" % (self.id, self.table.name)
 
 
 class ScheduleManager(models.Manager):

@@ -73,17 +73,17 @@ def request_cards(line_bot, event):
 
         if result.manager.patients:
             columns += utils.generate_patients_card(
-                '照護經理 %s' % result.manager.owner.name, '請選擇案例',
+                '照護經理 %s' % result.manager.owner.name, '請選擇個案',
                 {'S': '', 'T': T_NURSING, 'stage': STAGE_GET_CARD},
                 result.manager.patients)
         if result.nurse.patients:
             columns += utils.generate_patients_card(
-                '照護員 %s' % result.nurse.owner.name, '請選擇案例',
+                '照護員 %s' % result.nurse.owner.name, '請選擇個案',
                 {'S': '', 'T': T_NURSING, 'stage': STAGE_GET_CARD},
                 result.nurse.patients)
         if result.customer.patients:
             columns += utils.generate_patients_card(
-                '家屬 %s' % result.customer.owner.name, '請選擇案例',
+                '家屬 %s' % result.customer.owner.name, '請選擇個案',
                 {'S': '', 'T': T_NURSING, 'stage': STAGE_GET_CARD},
                 result.customer.patients)
         line_bot.reply_message(event.reply_token, TemplateSendMessage(
@@ -95,9 +95,9 @@ def request_cards(line_bot, event):
                 request_cards_with_patient(line_bot, event, patient=c.patients.first())
                 return
     elif result.manager.owner:
-        line_bot.reply_message(event.reply_token, TextSendMessage(text="無法取得案例，請直接與照護經理聯絡。"))
+        line_bot.reply_message(event.reply_token, TextSendMessage(text="無法取得個案，請直接與照護經理聯絡。"))
     elif result.customer.owner:
-        line_bot.reply_message(event.reply_token, TextSendMessage(text="無法取得案例，請直接與照護經理聯絡。"))
+        line_bot.reply_message(event.reply_token, TextSendMessage(text="無法取得個案，請直接與照護經理聯絡。"))
     else:
         line_bot.reply_message(event.reply_token, TextSendMessage(text="請先註冊會員。"))
 
