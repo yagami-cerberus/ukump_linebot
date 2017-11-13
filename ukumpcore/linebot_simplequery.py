@@ -48,7 +48,7 @@ def ignition(line_bot, event, catalog):
     elif result.customer.owner:
         line_bot.reply_message(event.reply_token, TextSendMessage(text="無法取得個案清單，請直接與照護經理聯絡。"))
     else:
-        line_bot.reply_message(event.reply_token, TextSendMessage(text="請先註冊會員。"))
+        raise utils.not_member_error
 
 
 def select_patient(line_bot, event, value=None, patient=None, catalog=None):

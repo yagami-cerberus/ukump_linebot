@@ -5,21 +5,26 @@ from django.contrib import messages
 # from django.urls import reverse
 import json
 
-from ukumpcore.linebot_utils import require_lineid
+from ukumpcore.linebot_utils import require_lineid, get_customer_id_from_lineid, get_employee_id_from_lineid
 from patient.models import Profile as PatientProfile, Guardian
 from customer.models import Profile as CustomerProfile, LineBotIntegration
 
 
 @require_lineid
-def line_association(request):
+def line_association(request, role=None):
     line_id = request.session['line_id']
 
     if request.method == 'GET':
-
-        if LineBotIntegration.objects.filter(lineid=line_id).exists():
-            return redirect('patient_main')
-        else:
-            return render(request, 'customer/reg.html')
+        # if role == 'customer' and get_customer_id_from_lineid(line_id):
+        #     return render(request, 'customer/association_completed.html', {'role': role})
+        # elif role == 'employee' and get_employee_id_from_lineid(line_id):
+        #     return render(request, 'customer/association_completed.html', {'role': role})
+        # else:
+        return render(request, 'customer/association.html', {'role': role})
+        # if LineBotIntegration.objects.filter(lineid=line_id).exists():
+        #     return redirect('patient_main')
+        # else:
+        #     return render(request, 'customer/reg.html')
     else:
         pcode = request.POST.get('pcode')
         pnum = request.POST.get('pnum')

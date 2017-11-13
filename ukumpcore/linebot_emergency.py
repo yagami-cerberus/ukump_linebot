@@ -1,33 +1,45 @@
 
-from linebot.models import TemplateSendMessage, TextSendMessage, ButtonsTemplate, CarouselTemplate, PostbackTemplateAction, URITemplateAction
-from django.core.cache import cache
-from django.conf import settings
-from django.urls import reverse
-from time import time
+from linebot.models import TemplateSendMessage, TextSendMessage, ButtonsTemplate, CarouselTemplate, PostbackTemplateAction
+# from django.core.cache import cache
+from ukumpcore.crm.agile import create_crm_ticket, get_patient_crm_url
+from django.utils import timezone
 import json
 
-from ukumpcore.crm.agile import customer_support_crm
 from patient.models import Profile as Patient
 from . import linebot_utils as utils
 
 T_EMERGENCY = 'T_EMERGENCY'
 
 STAGE_INIGITION = 'i'
-STAGE_INIGITION_CONFIRM = 'c'
-STAGE_SELECT_TARGET = 's'
-STAGE_TRANSFER_CONFIRM = 'a'
-STAGE_TRANSFER = 't'
-STAGE_DISMISS_CONFIRM = 'dc'
-STAGE_DISMISS = 'd'
+STAGE_SELECT_EVENT = 'e'
+STAGE_SELECT_ACTION = 'a'
+STAGE_COMMIT = 'c'
+STAGE_SUBMIT = 's'
+
+EMERGENCY_TICKET_TEMPLATE = """通報人: %(reporter)s
+緊急通報對象: <a href="%(patient_url)s">%(case_name)s</a>
+通報聯絡電話: %(phone)s
+緊急事項: %(event)s
+處置: %(actions)s"""
+
+EMERGENCY_REPLOY_EMPLOYEE_TEMPLATE = """個案編號(case_name)s 緊急通報！
+通報人: %(reporter)s
+通報聯絡電話: %(phone)s
+緊急事項: %(event)s
+處置: %(actions)s
+
+CRM Ticket #%(ticket_id)s
+%(ticket_url)s"""
 
 
-ACTION_CANCEL = PostbackTemplateAction("緊急狀況解除", json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_DISMISS_CONFIRM, 'V': True}))
-TEMPLATE_DISMISS_CONFIRM = TemplateSendMessage(
-    alt_text="解除緊急通報",
-    template=ButtonsTemplate(text="確認解除緊急通報", actions=[
-        PostbackTemplateAction("是", json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_DISMISS, 'V': True}))]))
-TEMPLATE_TRANSFER_ACTION = [
-    PostbackTemplateAction("確認", json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_TRANSFER, 'V': True}))]
+def format_message(value):
+    t = timezone.datetime.fromtimestamp(value['t'])
+    message = (
+        '通報日期 %s' % t.strftime('%Y-%m-%d %H時%M分'),
+        '事件：%s' % value.get('e', '未描述'),
+        '處置：%s' % (', '.join(value['a']) if value.get('a') else '無')
+    )
+    return '\n'.join(message)
 
 
 def ignition_emergency(line_bot, event):
@@ -42,187 +54,169 @@ def ignition_emergency(line_bot, event):
             columns += utils.generate_patients_card(
                 '照護經理 %s' % result.manager.owner.name, '請選擇案例',
                 {'S': '', 'T': T_EMERGENCY, 'stage': STAGE_INIGITION},
-                result.manager.patients)
+                result.manager.patients,
+                value=lambda p: {'pid': p.id})
         if result.nurse.patients:
             columns += utils.generate_patients_card(
                 '照護員 %s' % result.nurse.owner.name, '請選擇案例',
                 {'S': '', 'T': T_EMERGENCY, 'stage': STAGE_INIGITION},
-                result.nurse.patients)
+                result.nurse.patients,
+                value=lambda p: {'pid': p.id})
         if result.customer.patients:
             columns += utils.generate_patients_card(
                 '家屬 %s' % result.customer.owner.name, '請選擇案例',
                 {'S': '', 'T': T_EMERGENCY, 'stage': STAGE_INIGITION},
-                result.customer.patients)
+                result.customer.patients,
+                value=lambda p: {'pid': p.id})
         line_bot.reply_message(event.reply_token, TemplateSendMessage(
-            alt_text="請選擇緊急通報對象",
+            alt_text='請選擇緊急通報對象',
             template=CarouselTemplate(columns=columns)))
     elif count == 1:
         for c in result:
             if c.patients:
-                select_patient(line_bot, event, patient=c.patients.first())
+                emergency_main_menu(line_bot, event, patient=c.patients.first())
                 return
     elif result.manager.owner:
-        line_bot.reply_message(event.reply_token, TextSendMessage(text="無法取得可通報的照護對象，請直接與照護經理聯絡。"))
+        line_bot.reply_message(event.reply_token, TextSendMessage(text='無法取得可通報的照護對象，請直接與照護經理聯絡。'))
     elif result.customer.owner:
-        line_bot.reply_message(event.reply_token, TextSendMessage(text="無法取得可通報的照護對象，請直接與照護經理聯絡。"))
+        line_bot.reply_message(event.reply_token, TextSendMessage(text='無法取得可通報的照護對象，請直接與照護經理聯絡。'))
     else:
-        line_bot.reply_message(event.reply_token, TextSendMessage(text="請先註冊會員。"))
+        raise utils.not_member_error
 
 
-def select_patient(line_bot, event, value=None, patient=None):
-    if not patient:
-        patient = Patient.objects.get(pk=value)
+def emergency_main_menu(line_bot, event, value=None, patient=None):
+    if patient:
+        value = {'pid': patient.id, 't': timezone.now().timestamp(), 'a': []}
+    else:
+        patient = Patient.objects.get(pk=value['pid'])
+        if 't' not in value:
+            value['t'] = timezone.now().timestamp()
+            value['a'] = []
 
-    session_i = int(time())
-    session = "_line_emergency:%s:%i" % (event.source.user_id, session_i)
-    cache.set(session, patient.id, 600)
     line_bot.reply_message(event.reply_token, TemplateSendMessage(
-        alt_text="緊急通報",
+        alt_text='緊急通報',
         template=ButtonsTemplate(
-            title="緊急通報",
-            text="通報案件 %s" % patient.name,
+            title='個案 %s 緊急通報' % patient.name,
+            text=format_message(value),
             actions=[
-                URITemplateAction("確認", settings.SITE_ROOT + reverse('patient_emergency', args=(patient.id, )))
+                PostbackTemplateAction('選擇通報事件', json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_SELECT_EVENT, 'V': value})),
+                PostbackTemplateAction('選擇處置內容', json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_SELECT_ACTION, 'V': value})),
+                PostbackTemplateAction('送出緊急通報', json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_COMMIT, 'V': value}))
             ])
     ))
 
 
-# def confirm_emergency_action(line_bot, event, value):
-#     session = "_line_emergency:%s:%i" % (event.source.user_id, value['s'])
-#     answer = value['a']
-#     patient_id = cache.get(session)
+def select_event(line_bot, event, value):
+    events = ('跌倒/受傷', '昏迷', '其他')
 
-#     employee = utils.get_employee(event)
-#     customer = utils.get_customer(event)
-#     if employee and employee.patients.filter(id=patient_id):
-#         source = employee
-#     elif customer and customer.patients.filter(id=patient_id):
-#         source = customer
+    def update_value(value, event):
+        value = value.copy()
+        value['e'] = event
+        return value
 
-#     if patient_id:
-#         cache.delete(session)
-#         patient = Patient.objects.get(id=patient_id)
-#         if answer:
-#             title = "LINE 緊急通報案例: %s" % patient.name
-#             message = '通報人: %s\n緊急通報對象: <a href="%s">%s</a>' % (source.name, get_patient_crm_url(patient), patient.name)
-#             ticket_id = create_crm_ticket(source, title, message, emergency=True)
+    actions = [
+        PostbackTemplateAction(e, json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_INIGITION, 'V': update_value(value, e)}))
+        for e in events]
 
-#             template = TemplateSendMessage(
-#                 alt_text="緊急通報處置",
-#                 template=ButtonsTemplate(
-#                     title="緊急通報處置",
-#                     text="通報案例 %s" % patient.name,
-#                     actions=[
-#                         PostbackTemplateAction("聯絡救護車/消防隊", json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_SELECT_TARGET, 'V': (ticket_id, 119)})),
-#                         PostbackTemplateAction("聯絡警察局", json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_SELECT_TARGET, 'V': (ticket_id, 110)})),
-#                         PostbackTemplateAction("聯絡關懷中心", json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_SELECT_TARGET, 'V': (ticket_id, 999)}))])
-#             )
-#             line_bot.reply_message(event.reply_token, template)
-#         else:
-#             line_bot.reply_message(event.reply_token, TextSendMessage(text="緊急通報已取消。"))
-#     else:
-#         line_bot.reply_message(event.reply_token, TextSendMessage(text="此操作已經失效，請重新執行緊急通報。"))
+    patient = Patient.objects.get(pk=value['pid'])
+    line_bot.reply_message(event.reply_token, TemplateSendMessage(
+        alt_text='緊急通報',
+        template=ButtonsTemplate(
+            title='個案 %s 緊急通報' % patient.name,
+            text=format_message(value),
+            actions=actions)))
 
 
-# def update_emergency_action(line_bot, event, value):
-#     ticket_id, operation = value
+def select_action(line_bot, event, value):
+    ACTIONS = ('已聯絡救護車(119)', '已聯絡警察(110)', '已自行送醫')  # noqa
 
-#     if operation == 110:
-#         update_crm_ticket_status()
-#         line_bot.reply_message(event.reply_token, TextSendMessage("聯絡救護車/消防隊 tel://110"))
-#     elif operation == 119:
-#         line_bot.reply_message(event.reply_token, TextSendMessage("聯絡警察局 tel://119"))
-#     elif value == 999:
-#         contact_care_center(line_bot, event)
+    def build_action(value, action):
+        value = value.copy()
+        actions = value['a'].copy()
 
+        if action in actions:
+            actions.remove(action)
+            value['a'] = actions
+            return PostbackTemplateAction(
+                '移除 "%s"' % action,
+                json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_INIGITION, 'V': value}))
+        else:
+            actions.append(action)
+            value['a'] = actions
+            return PostbackTemplateAction(
+                action,
+                json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_INIGITION, 'V': value}))
 
-# def contact_care_center(line_bot, event):
-#     actions = [
-#         URITemplateAction("個案資訊及聯絡", settings.SITE_ROOT + reverse('patient_list_members')),
-#         PostbackTemplateAction("轉知照護經理", json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_TRANSFER_CONFIRM, 'V': True})),
-#         ACTION_CANCEL]
-
-#     strftime = utils.localtime().strftime('%m/%d %H:%M')
-#     title = []
-#     body = []
-
-#     employee = utils.get_employee(event)
-#     if employee:
-#         title.append("照護員")
-#         body.append("照護員 %s" % employee.name)
-#     customer = utils.get_customer(event)
-#     if customer and customer.patients.count():
-#         title.append("家屬")
-#         body.append("家屬 %s" % customer.name)
-
-#     if title:
-#         line_bot.reply_message(event.reply_token, TemplateSendMessage(
-#             alt_text="%s緊急通報" % ("/".join(title)),
-#             template=ButtonsTemplate(text="緊急通報\n%s\n在 %s" % ("\n".join(body), strftime),
-#                                      actions=actions)))
+    patient = Patient.objects.get(pk=value['pid'])
+    line_bot.reply_message(event.reply_token, TemplateSendMessage(
+        alt_text='緊急通報',
+        template=ButtonsTemplate(
+            title='個案 %s 緊急通報' % patient.name,
+            text=format_message(value),
+            actions=tuple(build_action(value, h) for h in ACTIONS))))
 
 
-# def transfer_confirm(line_bot, event, value):
-#     line_bot.reply_message(event.reply_token, TemplateSendMessage(
-#         alt_text="確認轉知照護經理",
-#         template=ButtonsTemplate(text="確認轉知照護經理？",
-#                                  actions=TEMPLATE_TRANSFER_ACTION)))
+def commit(line_bot, event, value, timeout=False):
+    value['t'] = timezone.now().timestamp()
+
+    patient = Patient.objects.get(pk=value['pid'])
+    message = format_message(value)
+
+    if timeout:
+        message = '此通報已經閒置過久，請重新點選提交送出\n %s' % message
+
+    line_bot.reply_message(event.reply_token, TemplateSendMessage(
+        alt_text='緊急通報',
+        template=ButtonsTemplate(
+            title='確認提交個案 %s 緊急通報' % patient.name,
+            text=message,
+            actions=[
+                PostbackTemplateAction('確認提交送出', json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_SUBMIT, 'V': value}))
+            ])
+    ))
 
 
-# def transfer(line_bot, event):
-#     strftime = utils.localtime().strftime('%m/%d %H:%M')
+def submit(line_bot, event, value):
+    if timezone.now().timestamp() - value['t'] > 180:
+        commit(line_bot, event, value, timeout=True)
+    else:
+        source = utils.get_employee(event)
+        if not source:
+            source = utils.get_customer(event)
 
-#     employee = utils.get_employee(event)
-#     if employee:
-#         for schedule in employee.nursing_schedule.today_schedule().distinct("patient").select_related("patient"):
-#             patient = schedule.patient
-#             template = TemplateSendMessage(
-#                 alt_text="照護員緊急通報",
-#                 template=ButtonsTemplate(
-#                     text="照護員緊急通報\n個案: %s\n時間 %s" % (patient.name, strftime, ),
-#                     actions=[
-#                         URITemplateAction("個案資訊及聯絡", settings.SITE_ROOT + reverse('line_nav', args=('contact', ))),
-#                         ACTION_CANCEL
-#                     ]))
-#             for lineid in utils.get_employees_lineid(patient.managers.filter(manager__relation="照護經理")):
-#                 line_bot.push_message(lineid, template)
+        patient = Patient.objects.get(pk=value['pid'])
+        title = 'LINE 緊急通報案例 %s' % patient.name
+        context = {
+            'case_name': patient.name,
+            'reporter': source.name,
+            'phone': source.profile.get('phone') if source.profile else '',
+            'event': value.get('e'),
+            'actions': ', '.join(value.get('a')),
+            'patient_url': get_patient_crm_url(patient)
+        }
 
-#     customer = utils.get_employee(event)
-#     if customer:
-#         for patient in customer.patients.all():
-#             template = TemplateSendMessage(
-#                 alt_text="家屬緊急通報",
-#                 template=ButtonsTemplate(
-#                     text="家屬緊急通報\n個案: %s\n時間 %s" % (patient.name, strftime, ),
-#                     actions=[
-#                         URITemplateAction("個案資訊及聯絡", settings.SITE_ROOT + reverse('line_nav', args=('contact', ))),
-#                         ACTION_CANCEL
-#                     ]))
-#             for lineid in utils.get_employees_lineid(patient.managers.filter(manager__relation="照護經理")):
-#                 line_bot.push_message(lineid, template)
+        ticket_id, ticket_url = create_crm_ticket(source, title, EMERGENCY_TICKET_TEMPLATE % context, emergency=True)
 
+        context['ticket_id'] = ticket_id
+        context['ticket_url'] = ticket_url
+        for member in patient.managers.filter(manager__relation='照護經理'):
+            member.push_message(EMERGENCY_REPLOY_EMPLOYEE_TEMPLATE % context)
 
-# def dismiss_confirm(line_bot, event):
-#     line_bot.reply_message(event.reply_token, TEMPLATE_DISMISS_CONFIRM)
-
-
-# def dismiss(line_bot, event):
-#     line_bot.reply_message(event.reply_token, TextSendMessage("緊急狀況解除"))
+        line_bot.reply_message(
+            event.reply_token,
+            TextSendMessage(
+                text='通報案件編號 #%s\n\n照護經理與關懷中心已收到您針對 %s 所送出的緊急通報，必要時請直接聯繫照護經理。' % (ticket_id, patient.name)))
 
 
 def handle_postback(line_bot, event, resp):
     stage, value = resp['stage'], resp.get('V')
     if stage == STAGE_INIGITION:
-        select_patient(line_bot, event, value)
-    # elif stage == STAGE_INIGITION_CONFIRM:
-    #     confirm_emergency_action(line_bot, event, value)
-    # elif stage == STAGE_SELECT_TARGET:
-    #     update_emergency_action(line_bot, event, value)
-    # elif stage == STAGE_TRANSFER_CONFIRM:
-    #     transfer_confirm(line_bot, event, value)
-    # elif stage == STAGE_TRANSFER:
-    #     transfer(line_bot, event)
-    # elif stage == STAGE_DISMISS_CONFIRM:
-    #     dismiss_confirm(line_bot, event)
-    # elif stage == STAGE_DISMISS:
-    #     dismiss(line_bot, event)
+        emergency_main_menu(line_bot, event, value)
+    elif stage == STAGE_SELECT_EVENT:
+        select_event(line_bot, event, value)
+    elif stage == STAGE_SELECT_ACTION:
+        select_action(line_bot, event, value)
+    elif stage == STAGE_COMMIT:
+        commit(line_bot, event, value)
+    else:
+        submit(line_bot, event, value)

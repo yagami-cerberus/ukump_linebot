@@ -50,5 +50,5 @@ class CourseQuestionInline(admin.TabularInline):
 @admin.register(models.Course)
 class CourseAdmin(admin.ModelAdmin):
     inlines = (CourseDetailInline, CourseQuestionInline, )
-    list_display = ("id", "name")
+    list_display = ('id', 'name', 'report_name')
     form = CourseForm

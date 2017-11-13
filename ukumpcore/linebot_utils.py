@@ -85,7 +85,7 @@ def get_patients(event):
     )
 
 
-def generate_patients_card(title, text, params, patients, label=lambda x: x.name):
+def generate_patients_card(title, text, params, patients, label=lambda x: x.name, value=lambda x: x.id):
     l = len(patients)
     columns = []
     for i in range(0, l, 3):
@@ -93,7 +93,7 @@ def generate_patients_card(title, text, params, patients, label=lambda x: x.name
         for j in range(i, min(i + 3, l)):
             p = patients[j]
             data = params.copy()
-            data['V'] = p.id
+            data['V'] = value(p)
             actions.append(PostbackTemplateAction(
                 label(p),
                 json.dumps(data)))
@@ -120,3 +120,14 @@ def require_lineid(fn):
 
 def is_system_admin(event):
     model = get_user_model()
+
+
+class LineMessageError(RuntimeError):
+    pass
+
+
+class NotMemberError(RuntimeError):
+    pass
+
+
+not_member_error = NotMemberError()

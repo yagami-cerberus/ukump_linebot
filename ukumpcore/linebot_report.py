@@ -51,9 +51,9 @@ def ignition_report(line_bot, event):
             elif result.nurse.patients:
                 select_patient(line_bot, event, patient=result.nurse.patients.first(), role='n')
     elif result.customer.owner:
-        line_bot.reply_message(event.reply_token, TextSendMessage(text="無法取得可通報的照護對象，請直接與照護經理聯絡。"))
+        line_bot.reply_message(event.reply_token, TextSendMessage(text="無功能。"))
     else:
-        line_bot.reply_message(event.reply_token, TextSendMessage(text="請先註冊會員。"))
+        raise utils.not_member_error
 
 
 def select_patient(line_bot, event, value=None, patient=None, role=None):

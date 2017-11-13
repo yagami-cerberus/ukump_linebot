@@ -107,6 +107,10 @@ class NursingSchedule(models.Model):
     schedule = DateTimeRangeField()
     flow_control = models.DateTimeField(null=True)
 
+    def today_courses(self):
+        return self.patient.course_schedule.extra(
+            where=("(weekly_mask & 1 << EXTRACT(DOW FROM current_timestamp AT TIME ZONE 'Asia/Taipei')::int) > 0", ))
+
     def fetch_next_question(self):
         courses_id = self.patient.course_schedule.extra(
             where=("(weekly_mask & 1 << EXTRACT(DOW FROM current_timestamp AT TIME ZONE 'Asia/Taipei')::int) > 0", )
@@ -136,8 +140,7 @@ class CareDailyReport(models.Model):
 
     objects = ReportManager()
     patient = models.ForeignKey(Profile)
-    token = models.CharField(max_length=64, null=True, blank=True)
-    catalog = models.TextField()
+    form_id = models.TextField(null=True, blank=True)
     report_date = models.DateField()
     report_period = models.IntegerField()
     report = JSONField()
@@ -162,10 +165,6 @@ class CareDailyReport(models.Model):
     @classmethod
     def is_guardian(cls, customer_id, patient_id):
         return customer_id and Guardian.objects.filter(patient_id=patient_id, customer_id=customer_id).exists()
-
-    # @property
-    # def report_form(self):
-    #     return DEFAULT_REPORT_FORM
 
     def period_label(self):
         if isinstance(self.report_period, str) and self.report_period.isdigit():

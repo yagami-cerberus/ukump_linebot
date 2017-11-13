@@ -14,9 +14,11 @@ fix_tz = pytz.timezone('Etc/GMT-8')
 
 NOON = time(12, 30)
 NIGHT = time(17, 30)
+T_NUSRING = 'T_N'
 T_NUSRING_BEGIN = "NCBEGIN"
 T_CARE_QUESTION_POSTBACK = "NCQUESP"
 T_CONTECT = "NCCONTECT"
+STAGE_BEGIN = 'begin'
 
 
 def create_datetime(date, time):
@@ -27,11 +29,15 @@ def create_datetime(date, time):
 def schedule_fixed_schedule_message():
     for schedule in NursingSchedule.objects.today_schedule().extra({"localbegin": "LOWER(schedule) AT TIME ZONE 'Asia/Taipei'"}).filter(flow_control=None):
         message = {
-            "T": T_NUSRING_BEGIN,
-            "M": "q",
-            "s": schedule.pk,
-            "t": "本日行程\n照護 %s 在 %s 點 %s 分" % (schedule.patient.name, schedule.localbegin.hour, schedule.localbegin.minute),
-            "q": (("確認", True), ("撤銷", False))
+            'M': 'b',
+            's': schedule.pk,
+            'alt': '%s 本日行程提醒' % schedule.localbegin.strftime('%Y年%m月%d日'),
+            'title': '%s 本日行程' % schedule.localbegin.strftime('%Y年%m月%d日'),
+            'text': '%s 照護 在 %s 點 %s 分' % (schedule.patient.name, schedule.localbegin.hour, schedule.localbegin.minute),
+            'actions': (
+                {'type': 'postback', 'label': '確認行程', 'data': json.dumps({'T': T_NUSRING, 'S': STAGE_BEGIN, 'V': (schedule.pk, True)})},
+                {'type': 'postback', 'label': '回報行程錯誤', 'data': json.dumps({'T': T_NUSRING, 'S': STAGE_BEGIN, 'V': (schedule.pk, False)})},
+            )
         }
 
         EmployeeLineMessageQueue(employee=schedule.employee,
@@ -91,31 +97,23 @@ def schedule_nursing_question(schedule):
 
 @transaction.atomic
 def postback_nursing_begin(employee, session_data, value):
-    schedule = NursingSchedule.objects.get(pk=session_data['data']['s'])
+    schedule = NursingSchedule.objects.extra({"localbegin": "LOWER(schedule) AT TIME ZONE 'Asia/Taipei'"}).get(pk=session_data['data']['s'])
     if value:
         if schedule.flow_control < schedule.schedule.lower:
-            now = timezone.now().astimezone(fix_tz)
-            t_noon = create_datetime(now, NOON)
-            t_night = create_datetime(now, NIGHT)
-
-            if t_noon in schedule.schedule:
-                noon_url = settings.SITE_ROOT + reverse('patient_daily_report', args=(schedule.patient_id, t_noon.date(), 12))
-                EmployeeLineMessageQueue(employee=schedule.employee,
-                                         scheduled_at=t_noon,
-                                         message=json.dumps({'M': 'u', 't': '上午日報表', 'u': (('填寫', noon_url), )})).save()
-
-            if t_night in schedule.schedule:
-                night_url = settings.SITE_ROOT + reverse('patient_daily_report', args=(schedule.patient_id, t_noon.date(), 18))
-                EmployeeLineMessageQueue(employee=schedule.employee,
-                                         scheduled_at=t_night,
-                                         message=json.dumps({'M': 'u', 't': '下午日報表', 'u': (('填寫', night_url), )})).save()
+            url = settings.SITE_ROOT + reverse('patient_daily_report',
+                                               args=(schedule.patient_id, schedule.localbegin.date(), 18))
+            EmployeeLineMessageQueue(employee=schedule.employee,
+                                     scheduled_at=schedule.schedule.lower,
+                                     message=json.dumps({'M': 'u',
+                                                         't': '請填寫 %s 日報表' % schedule.localbegin.strftime('%Y年%m月%d日'),
+                                                         'u': (('填寫', url), )})).save()
             schedule_nursing_question(schedule)
     else:
         for employee in Employee.objects.filter(manager__patient=schedule.patient, manager__relation="照護經理"):
             EmployeeLineMessageQueue(
                 employee=employee,
                 scheduled_at=timezone.now(),
-                message=json.dumps({'M': 't', 't': '照護員 %s 取消今日對 %s 照護行程' % (employee.name, schedule.patient.name)})).save()
+                message=json.dumps({'M': 't', 't': '照護員 %s 回報取消今日對 %s 照護行程' % (employee.name, schedule.patient.name)})).save()
 
 
 @transaction.atomic
@@ -133,3 +131,13 @@ def postback_nursing_question(employee, session_data, value):
     CareHistory(patient_id=schedule.patient_id, employee=employee, question_id=question_id,
                 scheduled_at=sch_at, answer_int=ans_int, answer_str=ans_str, routine=routine).save()
     return schedule, (sch_at == schedule.flow_control)
+
+
+def handle_postback(line_bot, event, resp):
+    stage, value = resp['stage'], resp.get('V')
+    if stage == STAGE_BEGIN:
+        postback_nursing_begin(employee, session_data, value)
+        # select_patient(line_bot, event, value, role=resp.get('r'))
+    elif stage == STAGE_LIST_DATE:
+        line_bot.reply_message(event.reply_token, TextSendMessage(text="not ready for use"))
+

@@ -18,7 +18,8 @@ from ukumpcore import blackbox
 from employee.models import Profile as Employee
 from patient.models import (
     Profile as Patient,
-    CareDailyReport)
+    CareDailyReport,
+    NursingSchedule)
 from ukumpcore.linebot_utils import get_customer_id_from_lineid, get_employee_id_from_lineid, get_employee_from_lineid, get_customer_from_lineid
 from ukumpcore.linebot_handler import flush_messages_queue
 from ukumpcore.crm.agile import create_crm_ticket, get_patient_crm_url
@@ -28,14 +29,12 @@ EMERGENCY_TICKET_TEMPLATE = """通報人: %(reporter)s
 緊急通報對象: <a href="%(patient_url)s">%(case_name)s</a>
 通報聯絡電話: %(phone)s
 緊急事項: %(event)s
-處置: %(handle)s
-備註: %(summary)s"""
+處置: %(handle)s"""
 EMERGENCY_REPLOY_EMPLOYEE_TEMPLATE = """案件 %(case_name)s 緊急通報！
 通報人: %(reporter)s
 通報聯絡電話: %(phone)s
 緊急事項: %(event)s
 處置: %(handle)s
-備註: %(summary)s
 
 CRM Ticket
 %(ticket_url)s"""
@@ -131,7 +130,7 @@ def form_postback(request):
 class DailyReport(object):
     def __new__(cls, request, patient_id, date, period):
         line_id = request.session['line_id']
-        if period not in ('12', '18'):
+        if period != '18':
             raise Http404
         if request.method == 'GET':
             return cls.get(request, line_id, patient_id, parse_date(date), int(period))
@@ -141,18 +140,22 @@ class DailyReport(object):
             raise Http404
 
     @classmethod
-    def redirect_for_edit(cls, employee_id, patient, report_date, report_period, edit_url=None):
+    def redirect_for_edit(cls, employee_id, patient, report_date, report_period, form_id, edit_url=None):
         token = get_random_string(32)
         cache.set('_daily_report_cache:%s' % token, '%s:%s:%s:%s' % (employee_id, patient.id, report_date, report_period), 3600)
 
-        params = settings.DAILY_REPORT_PARAMS % {
+        form = settings.CARE_REPORTS.get(form_id)
+        if not form:
+            return HttpResponse('無效的報表識別碼: %s' % form_id, content_type='text/plain')
+
+        params = form['params'] % {
             'session': '%s;%s' % (quote(patient.name), quote(token)),
             'date': quote(report_date.strftime('%Y-%m-%d'))
         }
         if edit_url:
             return redirect('%s&%s' % (edit_url, params))
         else:
-            return redirect(settings.DAILY_REPORT_URL % params)
+            return redirect(form['url'] % params)
 
     @classmethod
     def get(cls, request, line_id, patient_id, report_date, report_period):
@@ -165,19 +168,25 @@ class DailyReport(object):
                 if patient.manager_set.filter(employee_id=employee_id, relation='照護經理') or \
                         CareDailyReport.is_nurse(employee_id, patient_id, report_date):
                     edit_url = report.report['_meta']['edit_url']
-                    return cls.redirect_for_edit(employee_id, patient, report_date, report_period, edit_url)
+                    return cls.redirect_for_edit(employee_id, patient, report_date, report_period, report.form_id, edit_url)
             else:
                 if patient.manager_set.filter(employee_id=employee_id, relation='照護經理') and \
                         (now() - report.updated_at).seconds < TIME_12HR:
                     edit_url = report.report['_meta']['edit_url']
-                    return cls.redirect_for_edit(employee_id, patient, report_date, report_period, edit_url)
+                    return cls.redirect_for_edit(employee_id, patient, report_date, report_period, report.form_id, edit_url)
                 elif CareDailyReport.is_nurse(employee_id, patient_id, report_date):
                     return HttpResponse('此份報表已經鎖定', content_type='text/plain')
                 else:
                     raise Http404
         else:
-            if CareDailyReport.is_nurse(employee_id, patient_id, report_date) and report_date == localdate():
-                return cls.redirect_for_edit(employee_id, patient, report_date, report_period)
+            if report_date == localdate():
+                schedule = NursingSchedule.objects.schedule_at(report_date).filter(patient_id=patient_id, employee_id=employee_id)
+                if len(schedule) != 1:
+                    return HttpResponse('找到重複的排程，請聯絡系統管理員。', content_type='text/plain')
+                form_ids = schedule.first().today_courses().exclude(table__report__isnull=True).values_list('table__report', flat=True)
+                if len(form_ids) != 1:
+                    return HttpResponse('找到重複的報表，請聯絡系統管理員。', content_type='text/plain')
+                return cls.redirect_for_edit(employee_id, patient, report_date, report_period, form_ids.first())
             raise Http404
 
 

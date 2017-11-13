@@ -1,6 +1,9 @@
 
 from django.contrib.postgres.fields import ArrayField
+from django.conf import settings
 from django.db import models
+
+COURSE_REPORTS = tuple((key, opts.get('label', key)) for key, opts in settings.CARE_REPORTS.items())
 
 
 class Question(models.Model):
@@ -21,6 +24,13 @@ class Course(models.Model):
     class Meta:
         db_table = "care_course"
     name = models.TextField()
+    report = models.CharField(max_length=500, null=True, blank=True, choices=COURSE_REPORTS)
+
+    def report_name(self):
+        if self.report in settings.CARE_REPORTS:
+            return settings.CARE_REPORTS[self.report].get('label', self.report)
+        else:
+            return self.report
 
     def __str__(self):
         return "%s#課程 %s" % (self.id, self.name)

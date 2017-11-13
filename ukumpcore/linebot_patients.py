@@ -7,7 +7,6 @@ from django.utils import timezone  # , dateparse
 from django.conf import settings
 from django.urls import reverse
 # from django.db import transaction
-from datetime import time  # , timedelta
 import json
 import pytz
 
@@ -18,10 +17,6 @@ from . import linebot_utils as utils
 CATALOGS = ("生理狀態", "精神狀態", "營養排泄", "活動狀態")
 fix_tz = pytz.timezone('Etc/GMT-8')
 
-NOON = time(12, 30)
-NIGHT = time(18, 00)
-T_NUSRING_BEGIN = "NCBEGIN"
-T_CARE_QUESTION_POSTBACK = "NCQUESP"
 T_CONTECT = "NCCONTECT"
 T_PHONE = "NCCONTECT_PHONE"
 T_NURSING = 'NURSING'
@@ -99,7 +94,7 @@ def request_cards(line_bot, event):
     elif result.customer.owner:
         line_bot.reply_message(event.reply_token, TextSendMessage(text="無法取得個案，請直接與照護經理聯絡。"))
     else:
-        line_bot.reply_message(event.reply_token, TextSendMessage(text="請先註冊會員。"))
+        raise utils.not_member_error
 
 
 def request_cards_with_patient(line_bot, event, value=None, patient=None):

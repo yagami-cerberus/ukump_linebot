@@ -22,10 +22,10 @@ from patient import views as patient_view
 from customer import views as customer_view
 
 urlpatterns = [
-    url(r'^kami/login/$', linelogin_handler.admin_login, name='line_association'),
+    url(r'^kami/login/$', linelogin_handler.admin_login),
     url(r'^kami/', admin.site.urls),
 
-    url(r'^customer/association$', customer_view.line_association, name='line_association'),
+    url(r'^customer/association/(?P<role>[a-z]+)?$', customer_view.line_association, name='line_association'),
 
     # 緊急通報
     url(r'^patient/(?P<patient_id>[0-9]+)/emergency', patient_view.emergency, name='patient_emergency'),
