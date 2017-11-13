@@ -50,11 +50,12 @@ def sync_patients():
 
     if patients_doc:
         for doc in patients_doc:
+            print(doc)
             if doc.get('updated_time', 0) != 0:
                 continue
             update_patient(conn, doc)
-        timestamp.value = patients_doc[-1]['created_time']
-        timestamp.save()
+        # timestamp.value = patients_doc[-1]['created_time']
+        # timestamp.save()
 
     # Sync updated
     timestamp, _ = UkumpGlobal.objects.get_or_create(key='agilecrm_patients_sync_timestamp', defaults={'value': 0})
@@ -118,7 +119,9 @@ def update_patient(conn, doc):
     if not patient:
         patient = Patient(extend={'agilrcrm': doc['id']})
     attrs = {p['name']: p['value'] for p in doc['properties']}
-    patient.name = attrs['name']
+    patient.name = attrs['Case Name']
+
+    patient.extend['case_id'] = attrs['name']
     if 'Date of Birth' in attrs:
         patient.birthday = time.strftime('%Y-%m-%d', time.gmtime(int(attrs['Date of Birth'])))
     if 'Gender' in attrs:
@@ -189,7 +192,7 @@ def create_crm_ticket(source, title, body, emergency=False):
         "requester_name": name,
         "requester_email": email,
         "subject": title,
-        "priority": "HIGH" if emergency else "NORMAL",
+        "priority": "HIGH" if emergency else "MEDIUM",
         "status": "OPEN",
         "groupID": "5649202965118976",
         "html_text": body,

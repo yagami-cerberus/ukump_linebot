@@ -1,8 +1,13 @@
 
+from django.db.models.functions import Cast, TruncDate, Lower
+from django.contrib.admin import SimpleListFilter
+from django.db.models import DateTimeField
+from django.utils.timezone import localdate, localtime, timedelta
 from django.contrib import admin
-from django.utils import timezone
 from django import forms
 from patient import models
+
+dt_field = DateTimeField()
 
 
 class PatientForm(forms.ModelForm):
@@ -106,17 +111,40 @@ class PatientCourseScheduleInline(admin.TabularInline):
 class PatientAdmin(admin.ModelAdmin):
     form = PatientForm
     inlines = (PatientGuardianInline, PatientManagerInline, PatientCourseScheduleInline)
-    list_display = ("id", "name", "birthday", "created_at")
+    list_display = ("id", "name", "_case_id", "birthday", "created_at")
+
+    def _case_id(self, instance):
+        return instance.extend.get('case_id', '')
+    _case_id.short_description = "case id"
+
+
+class NursingDateFilter(SimpleListFilter):
+    title = 'Date'
+    parameter_name = 'date'
+
+    def lookups(self, request, model_admin):
+        return (('n', 'Today'), ('y', 'Yesterday'), ('t', 'Tomorrow'))
+
+    def queryset(self, request, queryset):
+        val = self.value()
+        if val == 'n':
+            return queryset.annotate(date=TruncDate(Cast(Lower('schedule'), dt_field))).filter(date=localdate())
+        elif val == 'y':
+            return queryset.annotate(date=TruncDate(Cast(Lower('schedule'), dt_field))).filter(date=localdate() - timedelta(days=1))
+        elif val == 't':
+            return queryset.annotate(date=TruncDate(Cast(Lower('schedule'), dt_field))).filter(date=localdate() + timedelta(days=1))
+        return queryset
 
 
 @admin.register(models.NursingSchedule)
 class NursingScheduleAdmin(admin.ModelAdmin):
+    list_filter = (NursingDateFilter, )
     list_display = ("id", "patient", "employee", "format_schedule")
     exclude = ("flow_control", )
 
     def format_schedule(self, record):
-        return "%s - %s" % (timezone.localtime(record.schedule.lower).strftime("%Y-%m-%d %H:%M"),
-                            timezone.localtime(record.schedule.upper).strftime("%Y-%m-%d %H:%M"))
+        return "%s - %s" % (localtime(record.schedule.lower).strftime("%Y-%m-%d %H:%M"),
+                            localtime(record.schedule.upper).strftime("%Y-%m-%d %H:%M"))
 
     format_schedule.short_description = "schedule"
     format_schedule.admin_order_field = "schedule"

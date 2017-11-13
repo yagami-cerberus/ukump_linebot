@@ -26,7 +26,7 @@ class Profile(models.Model):
         LineMessageQueue(customer=self, scheduled_at=scheduled_at, message=raw_data).save()
 
     def push_message(self, message, scheduled_at=Now()):
-        LineMessageQueue(customer=self, scheduled_at=scheduled_at, message=json.dumps({'M': 't', 't': message})).save()
+        LineMessageQueue(customer=self, scheduled_at=scheduled_at, message=json.dumps({'M': 't', 'text': message})).save()
 
 
 class LineBotIntegration(models.Model):

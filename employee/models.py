@@ -22,7 +22,7 @@ class Profile(models.Model):
             "(LOWER(schedule) AT TIME ZONE 'Asia/Taipei')::Date = (current_timestamp AT TIME ZONE 'Asia/Taipei')::Date",))
 
     def push_message(self, message):
-        LineMessageQueue(employee=self, scheduled_at=Now(), message=json.dumps({'M': 't', 't': message})).save()
+        LineMessageQueue(employee=self, scheduled_at=Now(), message=json.dumps({'M': 't', 'text': message})).save()
 
 
 class LineBotIntegration(models.Model):

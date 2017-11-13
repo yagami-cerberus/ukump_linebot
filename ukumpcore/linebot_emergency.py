@@ -17,12 +17,12 @@ STAGE_COMMIT = 'c'
 STAGE_SUBMIT = 's'
 
 EMERGENCY_TICKET_TEMPLATE = """通報人: %(reporter)s
-緊急通報對象: <a href="%(patient_url)s">%(case_name)s</a>
-通報聯絡電話: %(phone)s
+個案: <a href="%(patient_url)s">%(case_name)s</a>
+聯絡電話: %(phone)s
 緊急事項: %(event)s
 處置: %(actions)s"""
 
-EMERGENCY_REPLOY_EMPLOYEE_TEMPLATE = """個案編號(case_name)s 緊急通報！
+EMERGENCY_REPLY_EMPLOYEE_TEMPLATE = """個案 %(case_name)s 緊急通報！
 通報人: %(reporter)s
 通報聯絡電話: %(phone)s
 緊急事項: %(event)s
@@ -200,12 +200,12 @@ def submit(line_bot, event, value):
         context['ticket_id'] = ticket_id
         context['ticket_url'] = ticket_url
         for member in patient.managers.filter(manager__relation='照護經理'):
-            member.push_message(EMERGENCY_REPLOY_EMPLOYEE_TEMPLATE % context)
+            member.push_message(EMERGENCY_REPLY_EMPLOYEE_TEMPLATE % context)
 
         line_bot.reply_message(
             event.reply_token,
             TextSendMessage(
-                text='通報案件編號 #%s\n\n照護經理與關懷中心已收到您針對 %s 所送出的緊急通報，必要時請直接聯繫照護經理。' % (ticket_id, patient.name)))
+                text='緊急通報案件編號 #%s\n\n照護經理與關懷中心已收到您針對 %s 所送出的緊急通報，必要時請直接聯繫照護經理。' % (ticket_id, patient.name)))
 
 
 def handle_postback(line_bot, event, resp):

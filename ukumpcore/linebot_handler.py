@@ -1,17 +1,15 @@
 
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models.functions import Now
-from django.core.cache import cache
 from django.db.models import signals
+from django.core.cache import cache
 from django.dispatch import receiver
 from django.utils import timezone
 from django.conf import settings
 from django.http import HttpResponse
 from django.urls import reverse
 from django.db import connection, transaction
-from binascii import b2a_hex
 import json
-import os
 
 from linebot import LineBotApi, WebhookHandler
 from linebot.models import (
@@ -19,10 +17,10 @@ from linebot.models import (
     TemplateSendMessage, ButtonsTemplate, CarouselTemplate, CarouselColumn, URITemplateAction, MessageTemplateAction
 )
 
-from . import linebot_emergency, linebot_patients, linebot_report, linebot_simplequery, nursing_scheduler
+from . import linebot_emergency, linebot_patients, linebot_report, linebot_simplequery, linebot_nursing
 from ukumpcore.linebot_utils import NotMemberError, LineMessageError
 from patient.models import CareDailyReport
-from employee.models import Profile as Employee, LineMessageQueue as EmployeeLineMessageQueue
+from employee.models import LineMessageQueue as EmployeeLineMessageQueue
 from customer.models import LineMessageQueue as CustomerLineMessageQueue
 
 
@@ -85,6 +83,11 @@ def flush_message(record):
         text = data['text']
         title = data.get('title')
         alt = data.get('alt') or title or text
+        if title:
+            title = title[:40]
+            text = text[:60]
+        else:
+            text = text[:160]
 
         line_bot.push_message(line_id, TemplateSendMessage(
             alt_text=alt,
@@ -93,28 +96,29 @@ def flush_message(record):
                 text=text, actions=[_build_linebot_action(a) for a in data['actions']][:4]))
         )
 
-    elif message_type == 'q':
-        action_type = data.pop('T')
-        question = data['t']
-        answers = data['q']
-        session = b2a_hex(os.urandom(16)).decode()
-
-        line_actions = [PostbackTemplateAction(
-            label,
-            json.dumps({'S': session, 'T': action_type, 'V': value})) for label, value in answers]
-
-        employee_id = record.employee_id
-        cache.add('_line_postback:%s' % session, json.dumps({
-            'catalog': action_type,
-            'employee_id': employee_id,
-            'data': data}), timeout=28800)
+    elif message_type == 'carousel':
+        alt = data.get('alt', '有卡片可以檢視')
+        max_actions = 1
+        columns = []
+        for col in data['columns']:
+            text = col['text'] or 'NOTEXT'
+            title = col.get('title')
+            if title:
+                title = title[:40]
+                text = text[:60]
+            else:
+                text = text[:160]
+            cc = CarouselColumn(thumbnail_image_url=col['imgurl'], title=title, text=text,
+                                actions=[_build_linebot_action(a) for a in col['actions']][:3])
+            max_actions = max(max_actions, len(cc.actions))
+            columns.append(cc)
 
         line_bot.push_message(line_id, TemplateSendMessage(
-            alt_text=data.get('alt', question),
-            template=ButtonsTemplate(text=question, actions=line_actions)))
+            alt_text=alt,
+            template=CarouselTemplate(columns=columns)))
 
     elif message_type == 't':
-        line_bot.push_message(line_id, TextSendMessage(data['t']))
+        line_bot.push_message(line_id, TextSendMessage(data['text'][:400]))
 
     elif message_type == 'u':
         line_actions = [URITemplateAction(label, value) for label, value in data['u']]
@@ -122,19 +126,6 @@ def flush_message(record):
             alt_text=data['t'],
             template=ButtonsTemplate(text=data['t'], title=data.get('tt'), actions=line_actions)))
 
-    elif message_type == 'c':
-        columns = []
-        for col in data['col']:
-            actions = []
-            for a in col['a']:
-                if a[0] == 'u':
-                    actions.append(URITemplateAction(a[1], a[2]))
-                elif a[0] == 'p':
-                    actions.append(PostbackTemplateAction(a[1], a[2]))
-
-            columns.append(CarouselColumn(thumbnail_image_url=col['url'], text=col['text'] or 'NOTEXT', actions=actions))
-        template = TemplateSendMessage(alt_text=data['alt'], template=CarouselTemplate(columns=columns))
-        line_bot.push_message(line_id, template)
     record.delete()
 
 
@@ -163,49 +154,19 @@ def handle_postback(event):
         return
 
     resp = json.loads(event.postback.data)
+    target = resp['T']
 
-    session = resp.get('S')
-    value = resp.get('V')
-
-    if session:
-        cache_data = cache.get('_line_postback:%s' % session)
-        if not cache_data:
-            raise LineMessageError('此操作選項已經逾期')
-
-        session_data = json.loads(cache_data)
-        employee = Employee.objects.filter(linebotintegration__lineid=event.source.user_id).first()
-        # customer_id = None
-
-        if session_data.get('employee_id') == employee.id:
-            if resp['T'] == nursing_scheduler.T_CARE_QUESTION_POSTBACK:
-                schedule, cont = nursing_scheduler.postback_nursing_question(employee, session_data, value)
-                line_bot.reply_message(event.reply_token, TextSendMessage(text="問題 %s 已歸檔" % session_data['data']['t']))
-                if cont:
-                    nursing_scheduler.schedule_nursing_question(schedule)
-            elif resp['T'] == nursing_scheduler.T_NUSRING_BEGIN:
-                nursing_scheduler.postback_nursing_begin(employee, session_data, value)
-                if value:
-                    line_bot.reply_message(event.reply_token, TextSendMessage(text='行程已確認'))
-                else:
-                    line_bot.reply_message(event.reply_token, TextSendMessage(text='已將行程撤銷訊息轉送至照護經理'))
-            else:
-                raise LineMessageError('無效的回應訊息 BAD_T')
-        else:
-            line_bot.reply_message(event.reply_token, TextSendMessage(text="無效的回應訊息 (C)"))
-    elif resp['T'] == linebot_patients.T_NURSING:
+    if target == linebot_patients.T_PATIENT:
         linebot_patients.handle_postback(line_bot, event, resp)
-    elif resp['T'] == nursing_scheduler.T_CONTECT:
-        linebot_patients.contect_manager(line_bot, event, resp)
-    elif resp['T'] == linebot_patients.T_PHONE:
-        linebot_patients.contect_phone(line_bot, event, resp)
-    elif resp['T'] == linebot_emergency.T_EMERGENCY:
+    elif target == linebot_emergency.T_EMERGENCY:
         linebot_emergency.handle_postback(line_bot, event, resp)
-    elif resp['T'] == linebot_report.T_REPORT:
+    elif target == linebot_report.T_REPORT:
         linebot_report.handle_postback(line_bot, event, resp)
-    elif resp['T'] == linebot_simplequery.T_SIMPLE_QUERY:
+    elif target == linebot_simplequery.T_SIMPLE_QUERY:
         linebot_simplequery.handle_postback(line_bot, event, resp)
-    elif resp['T'] == nursing_scheduler.T_NURSING:
-        pass
+    elif target == linebot_nursing.T_NURSING:
+        linebot_nursing.handle_postback(line_bot, event, resp)
+
 
 @handler.add(MessageEvent, message=TextMessage)
 @line_error_handler
@@ -226,12 +187,20 @@ def handle_message(event):
     elif event.message.text == '1':
         flush_messages_queue()
     elif event.message.text == '2':
-        nursing_scheduler.schedule_fixed_schedule_message()
+        linebot_nursing.schedule_fixed_schedule_message()
     elif event.message.text == '3':
         linebot_patients.prepare_dairly_cards()
-        raise LineMessageError("卡片準備完成")
+        raise LineMessageError('卡片準備完成')
     else:
-        raise LineMessageError(event.source.user_id)
+        key = '_line:reply:%s' % event.source.user_id
+        magic = cache.get(key)
+        if magic:
+            cache.delete(key)
+            target = magic['T']
+            if target == linebot_patients.T_PATIENT:
+                linebot_patients.handle_message(line_bot, event, event.message.text, magic)
+        else:
+            raise LineMessageError(event.source.user_id)
 
 
 @handler.add(MessageEvent, message=LocationMessage)

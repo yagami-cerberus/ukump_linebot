@@ -8,7 +8,7 @@ import json
 from linebot.models import TemplateSendMessage, TextSendMessage, CarouselTemplate
 from patient.models import Profile as Patient
 
-from . import nursing_scheduler
+from . import linebot_nursing
 from . import linebot_utils as utils
 
 T_REPORT = 'T_REPORT'
@@ -60,7 +60,7 @@ def select_patient(line_bot, event, value=None, patient=None, role=None):
     if not patient:
         patient = Patient.objects.get(pk=value)
 
-    now = timezone.now().astimezone(nursing_scheduler.fix_tz)
+    now = timezone.now().astimezone(linebot_nursing.fix_tz)
 
     if role == 'm':
         actions = []
@@ -81,8 +81,8 @@ def select_patient(line_bot, event, value=None, patient=None, role=None):
             template=ButtonsTemplate(title='%s 個案報告' % patient.name, text='請選擇報告', actions=actions)))
 
     elif role == 'n':
-        t_noon = nursing_scheduler.create_datetime(now, nursing_scheduler.NOON)
-        t_night = nursing_scheduler.create_datetime(now, nursing_scheduler.NIGHT)
+        t_noon = linebot_nursing.create_datetime(now, linebot_nursing.NOON)
+        t_night = linebot_nursing.create_datetime(now, linebot_nursing.NIGHT)
 
         flags = 0
         for s in patient.nursing_schedule.today_schedule():
@@ -112,4 +112,3 @@ def handle_postback(line_bot, event, resp):
         select_patient(line_bot, event, value, role=resp.get('r'))
     elif stage == STAGE_LIST_DATE:
         line_bot.reply_message(event.reply_token, TextSendMessage(text="not ready for use"))
-
