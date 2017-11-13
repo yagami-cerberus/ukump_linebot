@@ -50,7 +50,6 @@ def sync_patients():
 
     if patients_doc:
         for doc in patients_doc:
-            print(doc)
             if doc.get('updated_time', 0) != 0:
                 continue
             update_patient(conn, doc)
@@ -141,6 +140,29 @@ def update_patient(conn, doc):
                 g.save()
             else:
                 patient.guardian_set.create(customer=c, relation=patient.extend.get('title', '未填寫'))
+
+    employee = update_employee(doc['owner'])
+    relations = patient.manager_set.filter(relation='照護經理')
+    if relations.count() == 1:
+        relation = relations[0]
+        if relation.employee_id != employee.id:
+            relation.employee = employee
+            relation.save()
+    else:
+        if relations.count() > 1:
+            relations.delete()
+        patient.manager_set.create(employee=employee, relation='照護經理')
+
+
+def update_employee(doc):
+    employee = Employee.objects.filter(profile__agilecrm=doc['id']).order_by('id').first()
+    if not employee:
+        employee = Employee(profile={'agilecrm': doc['id']}, members=[])
+    employee.name = doc['name']
+    employee.profile['email'] = doc['email']
+    employee.profile['phone'] = doc['phone']
+    employee.save()
+    return employee
 
 
 def create_customer(conn, crm_customer_id):
