@@ -81,26 +81,29 @@ def select_patient(line_bot, event, value=None, patient=None, role=None):
             template=ButtonsTemplate(title='%s 個案報告' % patient.name, text='請選擇報告', actions=actions)))
 
     elif role == 'n':
-        t_noon = linebot_nursing.create_datetime(now, linebot_nursing.NOON)
-        t_night = linebot_nursing.create_datetime(now, linebot_nursing.NIGHT)
+        # t_noon = linebot_nursing.create_datetime(now, linebot_nursing.NOON)
+        # t_night = linebot_nursing.create_datetime(now, linebot_nursing.NIGHT)
 
-        flags = 0
-        for s in patient.nursing_schedule.today_schedule():
-            if t_noon in s.schedule:
-                flags |= 1
-            if t_night in s.schedule:
-                flags |= 2
-        actions = []
-        if flags & 1:
-            actions.append(
-                URITemplateAction('上午', settings.SITE_ROOT + \
-                                         reverse('patient_daily_report', args=(patient.id, now.strftime('%Y-%m-%d'), 12))))
-        if flags & 2:
-            actions.append(
-                URITemplateAction('下午', settings.SITE_ROOT + \
-                                         reverse('patient_daily_report', args=(patient.id, now.strftime('%Y-%m-%d'), 18))))
+        # flags = 0
+        # for s in patient.nursing_schedule.today_schedule():
+        #     if t_noon in s.schedule:
+        #         flags |= 1
+        #     if t_night in s.schedule:
+        #         flags |= 2
+        # actions = []
+        # if flags & 1:
+        #     actions.append(
+        #         URITemplateAction('上午', settings.SITE_ROOT + \
+        #                                  reverse('patient_daily_report', args=(patient.id, now.strftime('%Y-%m-%d'), 12))))
+        # if flags & 2:
+        #     actions.append(
+        #         URITemplateAction('下午', settings.SITE_ROOT + \
+        #                                  reverse('patient_daily_report', args=(patient.id, now.strftime('%Y-%m-%d'), 18))))
+        actions.append(
+            URITemplateAction('填寫', settings.SITE_ROOT + \
+                                     reverse('patient_daily_report', args=(patient.id, now.strftime('%Y-%m-%d'), 18))))
         line_bot.reply_message(event.reply_token, TemplateSendMessage(
-            alt_text='請選擇報表',
+            alt_text='當日日報表',
             template=ButtonsTemplate(title='%s 個案報告' % patient.name, text='請選擇報告', actions=actions)))
     else:
         line_bot.reply_message(event.reply_token, TextSendMessage(text="params error"))

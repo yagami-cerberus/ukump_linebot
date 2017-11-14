@@ -125,7 +125,7 @@ def nursing_begin(line_bot, event, value):
             url = settings.SITE_ROOT + reverse('patient_daily_report',
                                                args=(schedule.patient_id, schedule.localbegin.date(), 18))
             EmployeeLineMessageQueue(employee=schedule.employee,
-                                     scheduled_at=schedule.schedule.lower,
+                                     scheduled_at=schedule.schedule.upper,
                                      message=json.dumps({'M': 'u',
                                                          't': '請填寫 %s 日報表' % schedule.localbegin.strftime('%Y年%m月%d日'),
                                                          'u': (('填寫', url), )})).save()
