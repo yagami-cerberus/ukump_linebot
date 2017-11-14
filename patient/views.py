@@ -69,7 +69,7 @@ def form_postback(request):
         try:
             doc = json.loads(request.body.decode())
             token = '_daily_report_cache:%s' % doc['response']['payload'].pop(settings.DAILY_REPORT_FORM_SESSION_KEY, ';').split(';', 1)[-1]
-            employee_id, patient_id, report_date, report_period = cache.get(token).split(':')
+            employee_id, patient_id, report_date, report_period, form_id = cache.get(token)
             cache.delete(token)
 
             report_body = doc['response']['payload']
@@ -80,23 +80,23 @@ def form_postback(request):
             }
         except (ValueError, KeyError, TypeError):
             logger.error('invaild form postback: %s', request.body)
-            return HttpResponse('', content_type='text/plain')
+            return HttpResponse('', content_type='text/plain; charset=utf-8')
         except AttributeError:
             logger.info('cache get null')
-            return HttpResponse('', content_type='text/plain')
+            return HttpResponse('', content_type='text/plain; charset=utf-8')
 
         employee = Employee.objects.get(id=employee_id)
         patient = Patient.objects.get(id=patient_id)
 
         report, created = CareDailyReport.objects.get_or_create(
             patient_id=patient_id, report_date=report_date, report_period=report_period,
-            defaults={'filled_by_id': employee_id, 'catalog': 'dailyreport', 'report': report_body})
+            defaults={'filled_by_id': employee_id, 'form_id': form_id, 'report': report_body})
         if created:
             employee.push_message('%s 在 %s 的%s間日報表已經收到' % (patient.name, report_date, report.period_label()))
-            return HttpResponse('', content_type='text/plain')
+            return HttpResponse('', content_type='text/plain; charset=utf-8')
         else:
             if report_body['_meta']['timestamp'] == report.report.get('_meta', {}).get('timestamp'):
-                return HttpResponse('', content_type='text/plain')
+                return HttpResponse('', content_type='text/plain; charset=utf-8')
 
             if report.reviewed_by:
                 if patient.manager_set.filter(employee=employee, relation='照護經理'):
@@ -104,26 +104,26 @@ def form_postback(request):
                     report.report = report_body
                     report.save()
                     employee.push_message('%s 在 %s 的%s間日報表已經審核完成 (已更新)。' % (patient.name, report_date, report.period_label()))
-                    return HttpResponse('', content_type='text/plain')
+                    return HttpResponse('', content_type='text/plain; charset=utf-8')
                 else:
                     employee.push_message('%s 在 %s 的%s間日報表已經鎖定，請聯絡照護經理。' % (patient.name, report_date, report.period_label()))
-                    return HttpResponse('', content_type='text/plain')
+                    return HttpResponse('', content_type='text/plain; charset=utf-8')
             else:
                 if patient.manager_set.filter(employee=employee, relation='照護經理'):
                     report.reviewed_by = employee
                     report.report = report_body
                     report.save()
                     employee.push_message('%s 在 %s 的%s間日報表已經審核完成。' % (patient.name, report_date, report.period_label()))
-                    return HttpResponse('', content_type='text/plain')
+                    return HttpResponse('', content_type='text/plain; charset=utf-8')
                 else:
                     report.filled_by = employee
                     report.report = report_body
                     report.save()
                     employee.push_message('%s 在 %s 的%s間日報表已經更新。' % (patient.name, report_date, report.period_label()))
-                    return HttpResponse('', content_type='text/plain')
+                    return HttpResponse('', content_type='text/plain; charset=utf-8')
     else:
         logger.error('invaild form postback action: %s', request.method)
-        return HttpResponse('', content_type='text/plain')
+        return HttpResponse('', content_type='text/plain; charset=utf-8')
 
 
 @require_lineid
@@ -142,11 +142,11 @@ class DailyReport(object):
     @classmethod
     def redirect_for_edit(cls, employee_id, patient, report_date, report_period, form_id, edit_url=None):
         token = get_random_string(32)
-        cache.set('_daily_report_cache:%s' % token, '%s:%s:%s:%s' % (employee_id, patient.id, report_date, report_period), 3600)
+        cache.set('_daily_report_cache:%s' % token, (employee_id, patient.id, report_date, report_period, form_id), 3600)
 
         form = settings.CARE_REPORTS.get(form_id)
         if not form:
-            return HttpResponse('無效的報表識別碼: %s' % form_id, content_type='text/plain')
+            return HttpResponse('無效的報表識別碼: %s' % form_id, content_type='text/plain; charset=utf-8')
 
         params = form['params'] % {
             'session': '%s;%s' % (quote(patient.name), quote(token)),
@@ -175,17 +175,19 @@ class DailyReport(object):
                     edit_url = report.report['_meta']['edit_url']
                     return cls.redirect_for_edit(employee_id, patient, report_date, report_period, report.form_id, edit_url)
                 elif CareDailyReport.is_nurse(employee_id, patient_id, report_date):
-                    return HttpResponse('此份報表已經鎖定', content_type='text/plain')
+                    return HttpResponse('此份報表已經鎖定', content_type='text/plain; charset=utf-8')
                 else:
                     raise Http404
         else:
             if report_date == localdate():
                 schedule = NursingSchedule.objects.schedule_at(report_date).filter(patient_id=patient_id, employee_id=employee_id)
                 if len(schedule) != 1:
-                    return HttpResponse('找到重複的排程，請聯絡系統管理員。', content_type='text/plain')
+                    return HttpResponse('找到重複的排程，請聯絡系統管理員。', content_type='text/plain; charset=utf-8')
                 form_ids = schedule.first().today_courses().exclude(table__report__isnull=True).values_list('table__report', flat=True)
-                if len(form_ids) != 1:
-                    return HttpResponse('找到重複的報表，請聯絡系統管理員。', content_type='text/plain')
+                if form_ids.count() == 0:
+                    return HttpResponse('沒有可用的報表，請聯絡系統管理員。', content_type='text/plain; charset=utf-8')
+                elif form_ids.count() > 1:
+                    return HttpResponse('找到重複的報表，請聯絡系統管理員。', content_type='text/plain; charset=utf-8')
                 return cls.redirect_for_edit(employee_id, patient, report_date, report_period, form_ids.first())
             raise Http404
 

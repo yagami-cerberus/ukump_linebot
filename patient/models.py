@@ -1,9 +1,8 @@
 
 from django.contrib.postgres.fields import DateTimeRangeField
 from django.contrib.postgres.fields import JSONField
-from django.utils.crypto import get_random_string
-from django.db.models import signals
-from django.dispatch import receiver
+# from django.db.models import signals
+# from django.dispatch import receiver
 from django.db import models
 from care.models import CourseQuestion
 # from .forms_dairy_report import DairyReportFormV1
@@ -210,9 +209,3 @@ class UkumpGlobal(models.Model):
 
     key = models.CharField(max_length=50, primary_key=True)
     value = JSONField()
-
-
-@receiver([signals.pre_save], sender=CareDailyReport)
-def save_care_dairly_report(sender, instance, **kwargs):
-    if not instance.id and not instance.token:
-        instance.token = get_random_string(32)
