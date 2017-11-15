@@ -220,7 +220,8 @@ def handle_message(event):
                 except Exception as err:
                     line_bot.reply_message(event.reply_token, TextSendMessage(text='處理命令時發生錯誤：%s' % err))
                     raise
-            raise LineMessageError(event.source.user_id)
+            else:
+                raise LineMessageError(event.source.user_id)
 
 
 @handler.add(MessageEvent, message=LocationMessage)
