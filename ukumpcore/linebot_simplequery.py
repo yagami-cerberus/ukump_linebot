@@ -5,7 +5,7 @@ import json
 
 from linebot.models import TemplateSendMessage, TextSendMessage, ButtonsTemplate, CarouselTemplate, PostbackTemplateAction
 from patient.models import Profile as Patient
-# from care.models import CourseDetail
+from care.models import CourseDetail
 from . import linebot_utils as utils
 
 T_SIMPLE_QUERY = 'T_SQ'
@@ -65,24 +65,20 @@ def select_patient(line_bot, event, value, patient=None):
         date = parse_date(value['date']) if 'date' in value else timezone.localdate()
         ext = ('("weekly_mask" & %i > 0)' % (1 << date.isoweekday()), )
         courses = patient.course_schedule.extra(where=ext)
-        # details = CourseDetail.objects.filter(table_id__in=courses.values_list('table_id', flat=True))
+        details = CourseDetail.objects.filter(table_id__in=courses.values_list('table_id', flat=True))
 
         title = '%s 在 %s 的課程' % (patient.name, date.strftime('%Y-%m-%d'))
-        if courses:
-            text = '\n'.join('\t%s' % c.table.name for c in courses)
+        if details:
+            text = '\n'.join('%s %s' % (d.scheduled_at.strftime('%H:%M'), d.name) for d in details)
         else:
-            text = '沒有課程' % (patient.name, date.strftime('%Y-%m-%d'))
-        # if details:
-        #     text = '\n'.join('%s %s' % (d.scheduled_at.strftime('%H:%M'), d.name) for d in details)
-        # else:
-        #     text = '%s 在 %s 沒有課程' % (patient.name, date.strftime('%Y-%m-%d'))
+            text = '%s 在 %s 沒有課程' % (patient.name, date.strftime('%Y-%m-%d'))
 
         prev_date = (date + timezone.timedelta(days=-1)).strftime('%Y-%m-%d')
         next_date = (date + timezone.timedelta(days=1)).strftime('%Y-%m-%d')
         line_bot.reply_message(event.reply_token, TemplateSendMessage(
             alt_text=title,
             template=ButtonsTemplate(
-                title=title[:40], text=text[:60],
+                text=text[:160],
                 actions=[
                     PostbackTemplateAction(
                         '前一天 (%s)' % prev_date,
