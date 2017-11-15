@@ -90,7 +90,7 @@ def select_patient(line_bot, event, value=None, patient=None, role=None):
         #         flags |= 1
         #     if t_night in s.schedule:
         #         flags |= 2
-        # actions = []
+        actions = []
         # if flags & 1:
         #     actions.append(
         #         URITemplateAction('上午', settings.SITE_ROOT + \
