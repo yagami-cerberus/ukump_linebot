@@ -33,6 +33,7 @@ def create_datetime(date, time):
 
 @transaction.atomic
 def schedule_fixed_schedule_message():
+    count = 0
     for schedule in NursingSchedule.objects.today_schedule().extra({"localbegin": "LOWER(schedule) AT TIME ZONE 'Asia/Taipei'"}).filter(flow_control=None):
         message = {
             'M': 'buttons',
@@ -51,6 +52,8 @@ def schedule_fixed_schedule_message():
 
         schedule.flow_control = schedule.schedule.lower - timedelta(minutes=15)
         schedule.save()
+        count += 1
+    return count
 
 
 @transaction.atomic

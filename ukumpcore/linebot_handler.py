@@ -18,7 +18,7 @@ from linebot.models import (
 )
 
 from . import linebot_emergency, linebot_patients, linebot_report, linebot_simplequery, linebot_nursing
-from ukumpcore.linebot_utils import NotMemberError, LineMessageError
+from ukumpcore.linebot_utils import NotMemberError, LineMessageError, is_system_admin
 from patient.models import CareDailyReport
 from employee.models import LineMessageQueue as EmployeeLineMessageQueue
 from customer.models import LineMessageQueue as CustomerLineMessageQueue
@@ -184,13 +184,6 @@ def handle_message(event):
         linebot_simplequery.ignition(line_bot, event, linebot_simplequery.CATALOG_COURSE)
     elif event.message.text == '聯絡照護團隊':
         linebot_simplequery.ignition(line_bot, event, linebot_simplequery.CATALOG_CONTECT)
-    elif event.message.text == '1':
-        flush_messages_queue()
-    elif event.message.text == '2':
-        linebot_nursing.schedule_fixed_schedule_message()
-    elif event.message.text == '3':
-        linebot_patients.prepare_dairly_cards()
-        raise LineMessageError('卡片準備完成')
     else:
         key = '_line:reply:%s' % event.source.user_id
         magic = cache.get(key)
@@ -200,6 +193,27 @@ def handle_message(event):
             if target == linebot_patients.T_PATIENT:
                 linebot_patients.handle_message(line_bot, event, event.message.text, magic)
         else:
+            if is_system_admin(event):
+                try:
+                    if event.message.text == '1':
+                        flush_messages_queue()
+                        line_bot.reply_message(event.reply_token, TextSendMessage(text='訊息柱列已經清空。'))
+                    elif event.message.text == '2':
+                        count = linebot_nursing.schedule_fixed_schedule_message()
+                        line_bot.reply_message(event.reply_token, TextSendMessage(text='照護排程已處理：%s筆' % count))
+                    elif event.message.text == '3':
+                        linebot_patients.prepare_dairly_cards()
+                        line_bot.reply_message(event.reply_token, TextSendMessage(text='所有客戶卡片已經送出'))
+                    elif event.message.text == '0':
+                        line_bot.reply_message(event.reply_token, TextSendMessage(
+                            text='命令清單:\n'
+                                 '1 - 立刻清空訊息柱列\n'
+                                 '2 - 立刻檢查照護排程清單\n'
+                                 '3 - 立刻送出客戶卡片\n'
+                                 '9 - 從 CRM 更新個案資料'))
+                except Exception as err:
+                    line_bot.reply_message(event.reply_token, TextSendMessage(text='處理命令時發生錯誤：%s' % err))
+                    raise
             raise LineMessageError(event.source.user_id)
 
 

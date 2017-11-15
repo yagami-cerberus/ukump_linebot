@@ -120,6 +120,7 @@ def require_lineid(fn):
 
 def is_system_admin(event):
     model = get_user_model()
+    return True if model.objects.filter(username=event.source.user_id, is_staff=True) else False
 
 
 class LineMessageError(RuntimeError):
