@@ -46,7 +46,7 @@ def ignition(line_bot, event, catalog):
     elif count == 1:
         for c in result:
             if c.patients:
-                select_patient(line_bot, event, {'catalog': catalog}, patient=c.patients.first())
+                select_patient(line_bot, event, {'c': catalog}, patient=c.patients.first())
                 return
     elif result.manager.owner:
         line_bot.reply_message(event.reply_token, TextSendMessage(text="無法取得個案清單，請直接與照護經理聯絡。"))
