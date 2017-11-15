@@ -204,6 +204,12 @@ def handle_message(event):
                     elif event.message.text == '3':
                         linebot_patients.prepare_dairly_cards()
                         line_bot.reply_message(event.reply_token, TextSendMessage(text='所有客戶卡片已經送出'))
+                    elif event.message.text == '9':
+                        line_bot.push_message(event.source.user_id, TextSendMessage('準備與 CRM 同步資料，這會使用一段時間...'))
+                        from ukumpcore.crm.agile import sync_patients, sync_customers
+                        sync_patients()
+                        sync_customers()
+                        line_bot.reply_message(event.reply_token, TextSendMessage(text='CRM 資料已更新完成'))
                     elif event.message.text == '0':
                         line_bot.reply_message(event.reply_token, TextSendMessage(
                             text='命令清單:\n'
