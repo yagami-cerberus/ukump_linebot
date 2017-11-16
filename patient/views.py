@@ -68,7 +68,7 @@ def form_postback(request):
     if request.method == 'POST':
         try:
             doc = json.loads(request.body.decode())
-            token = '_daily_report_cache:%s' % doc['response']['payload'].pop(settings.DAILY_REPORT_FORM_SESSION_KEY, ';').split(';', 1)[-1]
+            token = '_daily_report_cache:%s' % doc['response']['payload'].pop(settings.CARE_REPORTS_SESSION_KEY, ';').split(';', 1)[-1]
             employee_id, patient_id, report_date, report_period, form_id = cache.get(token)
             cache.delete(token)
 
@@ -140,6 +140,25 @@ class DailyReport(object):
             raise Http404
 
     @classmethod
+    def get_report(cls, patient_id, report_date, report_period):
+        return CareDailyReport.objects.filter(patient_id=patient_id, report_date=report_date, report_period=report_period).first()
+
+    @classmethod
+    def get_form_id(cls, patient_id, employee_id, report_date):
+        schedule = NursingSchedule.objects.schedule_at(report_date).filter(patient_id=patient_id, employee_id=employee_id)
+        if len(schedule) != 1:
+            raise RuntimeError('找到重複的排程，請聯絡系統管理員。')
+            # return HttpResponse('找到重複的排程，請聯絡系統管理員。', content_type='text/plain; charset=utf-8')
+        form_ids = schedule.first().today_courses().exclude(table__report__isnull=True).values_list('table__report', flat=True)
+        if form_ids.count() == 0:
+            raise RuntimeError('沒有可用的報表，請聯絡系統管理員。')
+            # return HttpResponse('沒有可用的報表，請聯絡系統管理員。', content_type='text/plain; charset=utf-8')
+        elif form_ids.count() > 1:
+            raise RuntimeError('找到重複的報表，請聯絡系統管理員。')
+            # return HttpResponse('找到重複的報表，請聯絡系統管理員。', content_type='text/plain; charset=utf-8')
+        return form_ids.first()
+
+    @classmethod
     def redirect_for_edit(cls, employee_id, patient, report_date, report_period, form_id, edit_url=None):
         token = get_random_string(32)
         cache.set('_daily_report_cache:%s' % token, (employee_id, patient.id, report_date, report_period, form_id), 3600)
@@ -180,15 +199,12 @@ class DailyReport(object):
                     raise Http404
         else:
             if report_date == localdate():
-                schedule = NursingSchedule.objects.schedule_at(report_date).filter(patient_id=patient_id, employee_id=employee_id)
-                if len(schedule) != 1:
-                    return HttpResponse('找到重複的排程，請聯絡系統管理員。', content_type='text/plain; charset=utf-8')
-                form_ids = schedule.first().today_courses().exclude(table__report__isnull=True).values_list('table__report', flat=True)
-                if form_ids.count() == 0:
-                    return HttpResponse('沒有可用的報表，請聯絡系統管理員。', content_type='text/plain; charset=utf-8')
-                elif form_ids.count() > 1:
-                    return HttpResponse('找到重複的報表，請聯絡系統管理員。', content_type='text/plain; charset=utf-8')
-                return cls.redirect_for_edit(employee_id, patient, report_date, report_period, form_ids.first())
+                try:
+                    form_id = cls.get_form_id(patient_id, employee_id, report_date)
+                except RuntimeError as err:
+                    return HttpResponse(err.args[0], content_type='text/plain; charset=utf-8')
+
+                return cls.redirect_for_edit(employee_id, patient, report_date, report_period, form_id)
             raise Http404
 
 
