@@ -71,7 +71,7 @@ def schedule_nursing_question(schedule):
             if it.question.response_labels:
                 session = get_random_string(32)
                 postback_cache = PostbackCache(schedule.id, it.question.id, scheduled_at, True)
-                cache.add('_nursing_postback:%s' % session, postback_cache, timeout=28800)
+                cache.add('_nursing_postback:%s' % session, postback_cache, timeout=57600)
 
                 has_q = True
                 message = {
@@ -90,7 +90,7 @@ def schedule_nursing_question(schedule):
             else:
                 message = {
                     'M': 't',
-                    't': it.question.question
+                    'text': it.question.question
                 }
 
             EmployeeLineMessageQueue(employee=schedule.employee,
@@ -119,7 +119,7 @@ def nursing_begin(line_bot, event, value):
 
     now = timezone.now()
     if (schedule.schedule.lower - now).total_seconds() > 3600 or (now - schedule.schedule.upper).total_seconds() > 1800:
-        raise LineMessageError('時間錯誤')
+        raise LineMessageError('時間錯誤，不在可回應時間內。')
 
     if is_begin:
         if schedule.flow_control < schedule.schedule.lower:
