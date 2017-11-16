@@ -148,14 +148,11 @@ class DailyReport(object):
         schedule = NursingSchedule.objects.schedule_at(report_date).filter(patient_id=patient_id, employee_id=employee_id)
         if len(schedule) != 1:
             raise RuntimeError('找到重複的排程，請聯絡系統管理員。')
-            # return HttpResponse('找到重複的排程，請聯絡系統管理員。', content_type='text/plain; charset=utf-8')
         form_ids = schedule.first().today_courses().exclude(table__report__isnull=True).values_list('table__report', flat=True)
         if form_ids.count() == 0:
             raise RuntimeError('沒有可用的報表，請聯絡系統管理員。')
-            # return HttpResponse('沒有可用的報表，請聯絡系統管理員。', content_type='text/plain; charset=utf-8')
         elif form_ids.count() > 1:
             raise RuntimeError('找到重複的報表，請聯絡系統管理員。')
-            # return HttpResponse('找到重複的報表，請聯絡系統管理員。', content_type='text/plain; charset=utf-8')
         return form_ids.first()
 
     @classmethod
