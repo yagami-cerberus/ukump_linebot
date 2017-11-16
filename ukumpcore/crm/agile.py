@@ -207,7 +207,7 @@ def create_crm_ticket(source, title, body, emergency=False):
         email = source.profile['email']
     elif isinstance(source, Employee):
         name = source.name
-        email = source.extend['email']
+        email = source.profile['email']
 
     conn = HTTPSConnection(DOMAIN)
     body = json.dumps({

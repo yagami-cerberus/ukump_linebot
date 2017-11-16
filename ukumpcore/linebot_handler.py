@@ -96,6 +96,9 @@ def flush_message(record):
                 text=text, actions=[_build_linebot_action(a) for a in data['actions']][:4]))
         )
 
+    elif message_type == 't':
+        line_bot.push_message(line_id, TextSendMessage(data['text'][:400]))
+
     elif message_type == 'carousel':
         alt = data.get('alt', '有卡片可以檢視')
         max_actions = 1
@@ -116,9 +119,6 @@ def flush_message(record):
         line_bot.push_message(line_id, TemplateSendMessage(
             alt_text=alt,
             template=CarouselTemplate(columns=columns)))
-
-    elif message_type == 't':
-        line_bot.push_message(line_id, TextSendMessage(data['text'][:400]))
 
     elif message_type == 'u':
         line_actions = [URITemplateAction(label, value) for label, value in data['u']]
@@ -234,10 +234,14 @@ def handle_location(event):
 def save_care_dairly_report(sender, instance, created, **kwargs):
     if created:
         review_url = settings.SITE_ROOT + reverse('patient_daily_report', args=(instance.patient_id, instance.report_date, instance.report_period))
+        title = '%s 的日報正在等待審核' % instance.patient.name
+        text = '日期 %s\n照服員 %s\n' % (instance.report_date, instance.filled_by.name)
         message = json.dumps({
-            'M': 'u',
-            't': '%s 的日報正在等待審核' % instance.patient.name,
-            'u': (('審核', review_url), )
+            'M': 'buttons',
+            'title': title,
+            'alt': title,
+            'text': text,
+            'actions': ({'type': 'url', 'label': '審核', 'url': review_url}, )
         })
         for employee_id in instance.patient.manager_set.all().values_list('employee_id', flat=True):
             EmployeeLineMessageQueue(

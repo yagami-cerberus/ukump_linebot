@@ -104,7 +104,7 @@ def schedule_nursing_question(schedule):
     else:
         EmployeeLineMessageQueue(employee=schedule.employee,
                                  scheduled_at=schedule.schedule.upper,
-                                 message=json.dumps({'M': 't', 't': '今日 %s 照護行程已結束' % schedule.patient.name})).save()
+                                 message=json.dumps({'M': 't', 'text': '今日 %s 照護行程已結束' % schedule.patient.name})).save()
         schedule.flow_control = schedule.schedule.upper + timedelta(seconds=1)
         schedule.save()
 
