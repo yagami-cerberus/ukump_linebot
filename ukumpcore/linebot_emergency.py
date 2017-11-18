@@ -1,5 +1,5 @@
 
-from linebot.models import TemplateSendMessage, TextSendMessage, ButtonsTemplate, CarouselTemplate, PostbackTemplateAction
+from linebot.models import TemplateSendMessage, TextSendMessage, ButtonsTemplate, ConfirmTemplate, CarouselTemplate, PostbackTemplateAction
 # from django.core.cache import cache
 from ukumpcore.crm.agile import create_crm_ticket, get_patient_crm_url
 from django.utils import timezone
@@ -15,6 +15,7 @@ STAGE_SELECT_EVENT = 'e'
 STAGE_SELECT_ACTION = 'a'
 STAGE_COMMIT = 'c'
 STAGE_SUBMIT = 's'
+STAGE_CANCEL = 'cc'
 
 EMERGENCY_TICKET_TEMPLATE = """通報人: %(reporter)s
 個案: <a href="%(patient_url)s">%(case_name)s</a>
@@ -167,17 +168,17 @@ def commit(line_bot, event, value, timeout=False):
 
     line_bot.reply_message(event.reply_token, TemplateSendMessage(
         alt_text='緊急通報',
-        template=ButtonsTemplate(
-            title='確認提交個案 %s 緊急通報' % patient.name,
-            text=message,
+        template=ConfirmTemplate(
+            text='確認提交個案 %s 緊急通報\n%s' % (patient.name, message),
             actions=[
-                PostbackTemplateAction('確認提交送出', json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_SUBMIT, 'V': value}))
+                PostbackTemplateAction('確認', json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_SUBMIT, 'V': value})),
+                PostbackTemplateAction('取消', json.dumps({'S': '', 'T': T_EMERGENCY, 'stage': STAGE_CANCEL, 'V': value})),
             ])
     ))
 
 
 def submit(line_bot, event, value):
-    if timezone.now().timestamp() - value['t'] > 180:
+    if timezone.now().timestamp() - value['t'] > 90:
         commit(line_bot, event, value, timeout=True)
     else:
         source = utils.get_employee(event)
@@ -218,5 +219,7 @@ def handle_postback(line_bot, event, resp):
         select_action(line_bot, event, value)
     elif stage == STAGE_COMMIT:
         commit(line_bot, event, value)
-    else:
+    elif stage == STAGE_SUBMIT:
         submit(line_bot, event, value)
+    elif stage == STAGE_CANCEL:
+        line_bot.reply_message(event.reply_token, TextSendMessage(text='已取消緊急通報'))
