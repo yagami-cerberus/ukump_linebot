@@ -159,8 +159,8 @@ def update_employee(doc):
     if not employee:
         employee = Employee(profile={'agilecrm': doc['id']}, members=[])
     employee.name = doc['name']
-    employee.profile['email'] = doc['email']
-    employee.profile['phone'] = doc['phone']
+    employee.profile['email'] = doc.get('email')
+    employee.profile['phone'] = doc.get('phone')
     employee.save()
     return employee
 
@@ -202,12 +202,8 @@ def customer_support_crm_filter(queryset):
 
 
 def create_crm_ticket(source, title, body, emergency=False):
-    if isinstance(source, Customer):
-        name = source.name
-        email = source.profile['email']
-    elif isinstance(source, Employee):
-        name = source.name
-        email = source.profile['email']
+    name = source.name
+    email = source.profile.get('email', 'noemail@ukump.com') if source.profile else 'noemail@ukump.com'
 
     conn = HTTPSConnection(DOMAIN)
     body = json.dumps({
