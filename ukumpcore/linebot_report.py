@@ -91,7 +91,7 @@ def select_patient(line_bot, event, value=None, patient=None, role=None):
                         actions=(URITemplateAction('編輯 %s' % form_name,
                                                    settings.SITE_ROOT + reverse('patient_daily_report', args=(patient.id, str_now, 18))),)))
         else:
-            form_id = CareDailyReport.get_form_id(patient.id, str_now, 18)
+            form_id = CareDailyReport.get_form_id(patient.id, utils.get_employee_id(event), str_now)
             form_name = settings.CARE_REPORTS.get(form_id, {}).get('label', '日報表')
             reply_message = TemplateSendMessage(
                 alt_text='%s 日報表' % str_now,
