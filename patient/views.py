@@ -177,7 +177,7 @@ class DailyReport(object):
     def get(cls, request, line_id, patient_id, report_date, report_period):
         employee_id = get_employee_id_from_lineid(line_id)
         patient = Patient.objects.get(id=patient_id)
-        report = CareDailyReport.objects.filter(patient_id=patient_id, report_date=report_date, report_period=report_period).first()
+        report = cls.get_report(patient_id, report_date, report_period)
 
         if report:
             if report.reviewed_by_id is None:
