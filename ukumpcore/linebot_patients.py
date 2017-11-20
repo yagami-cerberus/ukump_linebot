@@ -85,21 +85,21 @@ def request_cards(line_bot, event):
 
         if result.manager.patients:
             columns += utils.generate_patients_card(
-                '照護經理 %s' % result.manager.owner.name, '請選擇個案',
+                '照護經理 %s' % result.manager.owner.name, '請選擇最新日報個案',
                 {'S': '', 'T': T_PATIENT, 'stage': STAGE_GET_CARD},
                 result.manager.patients)
         if result.nurse.patients:
             columns += utils.generate_patients_card(
-                '照護員 %s' % result.nurse.owner.name, '請選擇個案',
+                '照護員 %s' % result.nurse.owner.name, '請選擇最新日報個案',
                 {'S': '', 'T': T_PATIENT, 'stage': STAGE_GET_CARD},
                 result.nurse.patients)
         if result.customer.patients:
             columns += utils.generate_patients_card(
-                '家屬 %s' % result.customer.owner.name, '請選擇個案',
+                '家屬 %s' % result.customer.owner.name, '請選擇最新日報個案',
                 {'S': '', 'T': T_PATIENT, 'stage': STAGE_GET_CARD},
                 result.customer.patients)
         line_bot.reply_message(event.reply_token, TemplateSendMessage(
-            alt_text="請選擇緊急通報對象",
+            alt_text='請選擇最新日報個案',
             template=CarouselTemplate(columns=columns)))
     elif count == 1:
         for c in result:

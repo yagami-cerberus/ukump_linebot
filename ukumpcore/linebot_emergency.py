@@ -53,19 +53,19 @@ def ignition_emergency(line_bot, event):
 
         if result.manager.patients:
             columns += utils.generate_patients_card(
-                '照護經理 %s' % result.manager.owner.name, '請選擇案例',
+                '照護經理 %s' % result.manager.owner.name, '請選擇緊急通報案例',
                 {'S': '', 'T': T_EMERGENCY, 'stage': STAGE_INIGITION},
                 result.manager.patients,
                 value=lambda p: {'pid': p.id})
         if result.nurse.patients:
             columns += utils.generate_patients_card(
-                '照護員 %s' % result.nurse.owner.name, '請選擇案例',
+                '照護員 %s' % result.nurse.owner.name, '請選擇緊急通報案例',
                 {'S': '', 'T': T_EMERGENCY, 'stage': STAGE_INIGITION},
                 result.nurse.patients,
                 value=lambda p: {'pid': p.id})
         if result.customer.patients:
             columns += utils.generate_patients_card(
-                '家屬 %s' % result.customer.owner.name, '請選擇案例',
+                '家屬 %s' % result.customer.owner.name, '請選擇緊急通報案例',
                 {'S': '', 'T': T_EMERGENCY, 'stage': STAGE_INIGITION},
                 result.customer.patients,
                 value=lambda p: {'pid': p.id})

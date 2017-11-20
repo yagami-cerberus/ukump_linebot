@@ -41,7 +41,7 @@ def ignition(line_bot, event, catalog):
                 result.customer.patients,
                 value=lambda p: {'pid': p.id, 'c': catalog})
         line_bot.reply_message(event.reply_token, TemplateSendMessage(
-            alt_text="請選擇個案",
+            alt_text='請選擇個案',
             template=CarouselTemplate(columns=columns)))
     elif count == 1:
         for c in result:
