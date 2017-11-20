@@ -1,6 +1,5 @@
 
 from linebot.models import TemplateSendMessage, TextSendMessage, ButtonsTemplate, ConfirmTemplate, CarouselTemplate, PostbackTemplateAction
-# from django.core.cache import cache
 from ukumpcore.crm.agile import create_crm_ticket, get_patient_crm_url
 from django.utils import timezone
 import json
