@@ -18,8 +18,7 @@ from ukumpcore import blackbox
 from employee.models import Profile as Employee
 from patient.models import (
     Profile as Patient,
-    CareDailyReport,
-    NursingSchedule)
+    CareDailyReport)
 from ukumpcore.linebot_utils import get_customer_id_from_lineid, get_employee_id_from_lineid, get_employee_from_lineid, get_customer_from_lineid
 from ukumpcore.linebot_handler import flush_messages_queue
 from ukumpcore.crm.agile import create_crm_ticket, get_patient_crm_url
@@ -92,7 +91,7 @@ def form_postback(request):
             patient_id=patient_id, report_date=report_date, report_period=report_period,
             defaults={'filled_by_id': employee_id, 'form_id': form_id, 'report': report_body})
         if created:
-            employee.push_message('%s 在 %s 的%s間日報表已經收到' % (patient.name, report_date, report.period_label()))
+            employee.push_message('%s 在 %s 的 %s 已經收到' % (patient.name, report_date, report.form_name))
             return HttpResponse('', content_type='text/plain; charset=utf-8')
         else:
             if report_body['_meta']['timestamp'] == report.report.get('_meta', {}).get('timestamp'):
@@ -103,23 +102,23 @@ def form_postback(request):
                     report.reviewed_by = employee
                     report.report = report_body
                     report.save()
-                    employee.push_message('%s 在 %s 的%s間日報表已經審核完成 (已更新)。' % (patient.name, report_date, report.period_label()))
+                    employee.push_message('%s 在 %s 的 %s 已經審核完成 (已更新)。' % (patient.name, report_date, report.form_name))
                     return HttpResponse('', content_type='text/plain; charset=utf-8')
                 else:
-                    employee.push_message('%s 在 %s 的%s間日報表已經鎖定，請聯絡照護經理。' % (patient.name, report_date, report.period_label()))
+                    employee.push_message('%s 在 %s 的 %s 已經鎖定，請聯絡照護經理。' % (patient.name, report_date, report.form_name))
                     return HttpResponse('', content_type='text/plain; charset=utf-8')
             else:
                 if patient.manager_set.filter(employee=employee, relation='照護經理'):
                     report.reviewed_by = employee
                     report.report = report_body
                     report.save()
-                    employee.push_message('%s 在 %s 的%s間日報表已經審核完成。' % (patient.name, report_date, report.period_label()))
+                    employee.push_message('%s 在 %s 的 %s 已經審核完成。' % (patient.name, report_date, report.form_name))
                     return HttpResponse('', content_type='text/plain; charset=utf-8')
                 else:
                     report.filled_by = employee
                     report.report = report_body
                     report.save()
-                    employee.push_message('%s 在 %s 的%s間日報表已經更新。' % (patient.name, report_date, report.period_label()))
+                    employee.push_message('%s 在 %s 的 %s 已經更新。' % (patient.name, report_date, report.form_name))
                     return HttpResponse('', content_type='text/plain; charset=utf-8')
     else:
         logger.error('invaild form postback action: %s', request.method)
@@ -138,22 +137,6 @@ class DailyReport(object):
             return cls.post(request, line_id, patient_id, parse_date(date), int(period))
         else:
             raise Http404
-
-    @classmethod
-    def get_report(cls, patient_id, report_date, report_period):
-        return CareDailyReport.objects.filter(patient_id=patient_id, report_date=report_date, report_period=report_period).first()
-
-    @classmethod
-    def get_form_id(cls, patient_id, employee_id, report_date):
-        schedule = NursingSchedule.objects.schedule_at(report_date).filter(patient_id=patient_id, employee_id=employee_id)
-        if len(schedule) != 1:
-            raise RuntimeError('找到重複的排程，請聯絡系統管理員。')
-        form_ids = schedule.first().today_courses().exclude(table__report__isnull=True).values_list('table__report', flat=True)
-        if form_ids.count() == 0:
-            raise RuntimeError('沒有可用的報表，請聯絡系統管理員。')
-        elif form_ids.count() > 1:
-            raise RuntimeError('找到重複的報表，請聯絡系統管理員。')
-        return form_ids.first()
 
     @classmethod
     def redirect_for_edit(cls, employee_id, patient, report_date, report_period, form_id, edit_url=None):
@@ -177,7 +160,7 @@ class DailyReport(object):
     def get(cls, request, line_id, patient_id, report_date, report_period):
         employee_id = get_employee_id_from_lineid(line_id)
         patient = Patient.objects.get(id=patient_id)
-        report = cls.get_report(patient_id, report_date, report_period)
+        report = CareDailyReport.get_report(patient_id, report_date, report_period)
 
         if report:
             if report.reviewed_by_id is None:
@@ -197,7 +180,7 @@ class DailyReport(object):
         else:
             if report_date == localdate():
                 try:
-                    form_id = cls.get_form_id(patient_id, employee_id, report_date)
+                    form_id = CareDailyReport.get_form_id(patient_id, employee_id, report_date)
                 except RuntimeError as err:
                     return HttpResponse(err.args[0], content_type='text/plain; charset=utf-8')
 

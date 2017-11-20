@@ -3,9 +3,10 @@ from django.contrib.postgres.fields import DateTimeRangeField
 from django.contrib.postgres.fields import JSONField
 # from django.db.models import signals
 # from django.dispatch import receiver
+from django.conf import settings
 from django.db import models
+
 from care.models import CourseQuestion
-# from .forms_dairy_report import DairyReportFormV1
 
 
 class ReportManager(models.Manager):
@@ -150,8 +151,20 @@ class CareDailyReport(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     @classmethod
-    def get_period_label(cls, period):
-        return '午' if period < 13 else '晚'
+    def get_report(cls, patient_id, report_date, report_period):
+        return cls.objects.filter(patient_id=patient_id, report_date=report_date, report_period=report_period).first()
+
+    @classmethod
+    def get_form_id(cls, patient_id, employee_id, report_date):
+        schedule = NursingSchedule.objects.schedule_at(report_date).filter(patient_id=patient_id, employee_id=employee_id)
+        if len(schedule) != 1:
+            raise RuntimeError('找到重複的排程，請聯絡系統管理員。')
+        form_ids = schedule.first().today_courses().exclude(table__report__isnull=True).values_list('table__report', flat=True)
+        if form_ids.count() == 0:
+            raise RuntimeError('沒有可用的報表，請聯絡系統管理員。')
+        elif form_ids.count() > 1:
+            raise RuntimeError('找到重複的報表，請聯絡系統管理員。')
+        return form_ids.first()
 
     @classmethod
     def is_manager(cls, employee_id, patient_id):
@@ -165,28 +178,9 @@ class CareDailyReport(models.Model):
     def is_guardian(cls, customer_id, patient_id):
         return customer_id and Guardian.objects.filter(patient_id=patient_id, customer_id=customer_id).exists()
 
-    def period_label(self):
-        if isinstance(self.report_period, str) and self.report_period.isdigit():
-            return self.get_period_label(int(self.report_period))
-        elif isinstance(self.report_period, int):
-            return self.get_period_label(self.report_period)
-        else:
-            return ""
-
-    # def to_form(self):
-    #     if self.report:
-    #         reverse_mapping = {}
-    #         for field_id, field in self.report_form.declared_fields.items():
-    #             reverse_mapping[field_id] = self.report.get(field.label)
-    #         return self.report_form(initial=reverse_mapping)
-    #     else:
-    #         return self.report_form()
-
-    # def from_form(self, form):
-    #     reverse_mapping = {}
-    #     for field_id, field in self.report_form.declared_fields.items():
-    #         reverse_mapping[field.label] = form.cleaned_data[field_id]
-    #     self.report = reverse_mapping
+    @property
+    def form_name(self):
+        return settings.CARE_REPORTS.get(self.form_id, {}).get('label', '無名稱日報表')
 
 
 class CareHistory(models.Model):

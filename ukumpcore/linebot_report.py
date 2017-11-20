@@ -5,7 +5,7 @@ from django.conf import settings
 from django.urls import reverse
 import json
 
-from patient.models import Profile as Patient
+from patient.models import Profile as Patient, CareDailyReport
 
 from . import linebot_nursing
 from . import linebot_utils as utils
@@ -56,7 +56,6 @@ def ignition_report(line_bot, event):
 
 
 def select_patient(line_bot, event, value=None, patient=None, role=None):
-    from patient.views import DailyReport
     if not patient:
         patient = Patient.objects.get(pk=value)
 
@@ -79,7 +78,7 @@ def select_patient(line_bot, event, value=None, patient=None, role=None):
                                      text='日期：%s' % str_now, actions=actions)))
 
     elif role == 'n':
-        report = DailyReport.get_report(patient.id, str_now, 18)
+        report = CareDailyReport.get_report(patient.id, str_now, 18)
         if report:
             if report.reviewed_by_id:
                 reply_message = TemplateSendMessage('本日報表已審核完畢無法編輯')
@@ -92,7 +91,7 @@ def select_patient(line_bot, event, value=None, patient=None, role=None):
                         actions=(URITemplateAction('編輯 %s' % form_name,
                                                    settings.SITE_ROOT + reverse('patient_daily_report', args=(patient.id, str_now, 18))),)))
         else:
-            form_id = DailyReport.get_form_id(patient.id, str_now, 18)
+            form_id = CareDailyReport.get_form_id(patient.id, str_now, 18)
             form_name = settings.CARE_REPORTS.get(form_id, {}).get('label', '日報表')
             reply_message = TemplateSendMessage(
                 alt_text='%s 日報表' % str_now,
