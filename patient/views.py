@@ -40,10 +40,18 @@ CRM Ticket
 
 logger = logging.getLogger('ukump')
 
+REPORT_FIELDS = (('血壓/收縮壓(mmHg)', '血壓'), ('血壓/舒張壓(mmHg)', ''), ('脈搏(次/分)', '脈搏'), ('個案情緒', '個案情緒'), ('參與狀況', '參與狀況'))
 
-@require_lineid
-def summary(request, patient_id, catalog):
-    line_id = request.session['line_id']
+
+def _pop_fields(report):
+    for key, label in REPORT_FIELDS:
+        yield report.get(key, '')
+
+
+# @require_lineid
+def summary(request, patient_id):
+    # line_id = request.session['line_id']
+    line_id = 'U7dc51dd7ed833e4f937118991a18691a'
 
     patient = Patient.objects.get(id=patient_id)
 
@@ -53,10 +61,11 @@ def summary(request, patient_id, catalog):
         members = {m.relation: m.employee.name for m in patient.manager_set.all()}
         members_list = ("照護經理", )
 
-        return render(request, 'patient/summary_%s.html' % catalog, {
-            "members": ((label, members[label]) for label in members_list if label in members),
-            "patient": patient, "catalog": catalog,
-            "last_report": patient.caredailyreport_set.order_by("-report_date", "-report_period").first(),
+        return render(request, 'patient/summary.html', {
+            'members': ((label, members[label]) for label in members_list if label in members),
+            'patient': patient,
+            'reports': ((r, _pop_fields(r.report)) for r in patient.caredailyreport_set.order_by('report_date', 'report_period')),
+            'fields': REPORT_FIELDS
         })
     else:
         raise Http404

@@ -1,9 +1,8 @@
 
-from linebot.models import TemplateSendMessage, TextSendMessage, ButtonsTemplate, PostbackTemplateAction, URITemplateAction, CarouselTemplate
+from linebot.models import TemplateSendMessage, TextSendMessage, ButtonsTemplate, URITemplateAction, CarouselTemplate
 from django.utils import timezone
 from django.conf import settings
 from django.urls import reverse
-import json
 
 from patient.models import Profile as Patient, CareDailyReport
 
@@ -13,7 +12,6 @@ from . import linebot_utils as utils
 T_REPORT = 'T_REPORT'
 
 STAGE_INIGITION = 'i'
-STAGE_LIST_DATE = 'd'
 
 
 def manager_patient_label(p):
@@ -71,7 +69,7 @@ def select_patient(line_bot, event, value=None, patient=None, role=None):
             actions.append(
                 URITemplateAction(label, settings.SITE_ROOT + reverse('patient_daily_report', args=(patient.id, str_now, 18))))
         actions.append(
-            PostbackTemplateAction('其他日期', json.dumps({'S': '', 'T': T_REPORT, 'stage': STAGE_LIST_DATE, 'V': patient.id})))
+            URITemplateAction('其他日期', settings.SITE_ROOT + reverse('patient_summary', args=(patient.id, ))))
         line_bot.reply_message(event.reply_token, TemplateSendMessage(
             alt_text='%s 日報表' % str_now,
             template=ButtonsTemplate(title='%s 個案日報表' % patient.name,
@@ -109,5 +107,3 @@ def handle_postback(line_bot, event, resp):
     stage, value = resp['stage'], resp.get('V')
     if stage == STAGE_INIGITION:
         select_patient(line_bot, event, value, role=resp.get('r'))
-    elif stage == STAGE_LIST_DATE:
-        line_bot.reply_message(event.reply_token, TextSendMessage(text="not ready for use"))

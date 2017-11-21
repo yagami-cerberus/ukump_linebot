@@ -31,7 +31,7 @@ urlpatterns = [
     url(r'^patient/(?P<patient_id>[0-9]+)/emergency', patient_view.emergency, name='patient_emergency'),
 
     # 檢視/填寫日報表
-    url(r'^patient/(?P<patient_id>[0-9]+)/summary/(?P<catalog>\d{1})/$', patient_view.summary, name='patient_summary'),
+    url(r'^patient/(?P<patient_id>[0-9]+)/summary/$', patient_view.summary, name='patient_summary'),
 
     # 檢視日報表清單
     # url(r'^patient/daily_reports$', patient_view.daily_reports, name='patient_dairly_reports'),
