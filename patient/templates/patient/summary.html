@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block page_title %}行程{% endblock %}
+{% block content %}
+<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+<style>
+.summary-card {
+    margin-bottom: 2em;
+}
+</style>
+
+<div class="container">
+    <div style="display: inline-block">
+        <img src="http://via.placeholder.com/100x100" />
+    </div>
+    <div style="display: inline-block">
+        <div>{{ patient.name }}</div>
+        <div>
+            照護團隊
+            <span>
+            {% for label, name in members %}
+                {{ label }}: {{ name }}
+            {% endfor %}
+            </span>
+        </div>
+    </div>
+</div>
+
+
+<!-- <nav aria-label="breadcrumb" role="navigation">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="#">基本資料</a></li>
+    <li class="breadcrumb-item active" aria-current="page">生理狀況</li>
+    <li class="breadcrumb-item"><a href="#">精神狀況</a></li>
+    <li class="breadcrumb-item"><a href="#">營養排泄</a></li>
+    <li class="breadcrumb-item"><a href="#">活動狀況</a></li>
+    <li class="breadcrumb-item"><a href="#">其他異常</a></li>
+  </ol>
+</nav>
+ -->
+
+<table class="table">
+    <thead>
+        <th>日期</th>
+        {% for key, label in fields %}
+        <th>{{ label }}</th>
+        {% endfor %}
+        <th>填寫</th>
+        <th>審核</th>
+    </thead>
+    <tbody>
+        {% for report, values in reports %}
+        <tr>
+            <td>
+                {{ report.report_date|date:"Y-m-d" }}<br />
+                <small class="text-secondary">{{ report.form_name }}</small>
+            </td>
+            {% for val in values %}
+            <td>{{ val }}</td>
+            {% endfor %}
+            <td>{{ report.filled_by.name }}</td>
+            <td>{{ report.reviewed_by.name }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}
+
