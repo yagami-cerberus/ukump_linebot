@@ -133,8 +133,8 @@ def contect_manager(line_bot, event, value):
     if manager and manager.profile:
         if 'line_link' in manager.profile:
             actions.append(URITemplateAction('透過LINE聯繫', manager.profile['line_link']))
-        if 'phone' in manager.profile:
-            actions.append(URITemplateAction('撥打行動電話', 'tel://%s' % manager.profile['phone']))
+        # if 'phone' in manager.profile:
+        #     actions.append(URITemplateAction('撥打行動電話', 'tel://%s' % manager.profile['phone']))
     actions.append(PostbackTemplateAction('留言關懷中心',
                                           json.dumps({'T': T_PATIENT, 'stage': STAGE_REPORT, 'V': value})))
 
