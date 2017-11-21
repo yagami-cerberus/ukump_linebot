@@ -46,7 +46,7 @@ def generate_line_cards(patient, date):
         title=label,
         text=text_date,
         actions=(
-            URITemplateAction('查閱詳情', settings.SITE_ROOT + reverse("patient_summary", args=(patient.pk, i))),
+            URITemplateAction('查閱詳情', settings.SITE_ROOT + reverse("patient_summary", args=(patient.pk)) + "#%i" % i),
             PostbackTemplateAction('聯繫照護團隊', json.dumps({'T': T_PATIENT, 'stage': STAGE_CONTECT, 'V': (patient.id, i)}))
         )) for i, label in enumerate(CATALOGS)]
     return TemplateSendMessage(alt_text='%s 在 %s 的日報表已經可以查閱' % (patient.name, text_date),
