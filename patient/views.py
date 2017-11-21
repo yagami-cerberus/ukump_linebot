@@ -48,9 +48,9 @@ def _pop_fields(report):
         yield report.get(key, '')
 
 
-# @require_lineid
+@require_lineid
 def summary(request, patient_id):
-    # line_id = request.session['line_id']
+    line_id = request.session['line_id']
     line_id = 'U7dc51dd7ed833e4f937118991a18691a'
 
     patient = Patient.objects.get(id=patient_id)
