@@ -40,7 +40,7 @@ def sync_patients():
             'page_size': '25',
             'global_sort_key': 'created_time',
             'filterJson': json.dumps({
-                'rules': [{'LHS': 'created_time', 'CONDITION': 'AFTER', 'RHS': rhs * 1000}],
+                'rules': [{'LHS': 'created_time', 'CONDITION': 'AFTER', 'RHS': rhs * 1000 - 86400000}],
                 'contact_type': 'COMPANY'})}
         if cursor:
             body['cursor'] = cursor
@@ -75,7 +75,8 @@ def sync_patients():
             'page_size': '25',
             'global_sort_key': 'updated_time',
             'filterJson': json.dumps({
-                'rules': [{'LHS': 'updated_time', 'CONDITION': 'AFTER', 'RHS': rhs * 1000}],
+                'rules': [{'LHS': 'updated_time', 'CONDITION': 'AFTER', 'RHS': rhs * 1000 - 86400000}],
+                'or_rules': [],
                 'contact_type': 'COMPANY'
             })}
         if cursor:
@@ -115,7 +116,7 @@ def sync_customers():
             'page_size': '25',
             'global_sort_key': 'updated_time',
             'filterJson': json.dumps({
-                'rules': [{'LHS': 'updated_time', 'CONDITION': 'AFTER', 'RHS': rhs * 1000}],
+                'rules': [{'LHS': 'updated_time', 'CONDITION': 'AFTER', 'RHS': rhs * 1000 - 86400000}],
                 'contact_type': 'PERSON'})}
         if cursor:
             body['cursor'] = cursor
