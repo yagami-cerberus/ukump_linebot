@@ -32,54 +32,74 @@ def sync_patients():
 
     # Sync created but not updated yet
     timestamp, _ = UkumpGlobal.objects.get_or_create(key='agilecrm_patients_create_timestamp', defaults={'value': 0})
-    body = urlencode({
-        'page_size': '25',
-        'global_sort_key': 'created_time',
-        'filterJson': json.dumps({
-            'rules': [{'LHS': 'created_time', 'CONDITION': 'AFTER', 'RHS': timestamp.value}],
-            'contact_type': 'COMPANY'
-        })
-    })
-    conn.request('POST', '/dev/api/filters/filter/dynamic-filter',
-                 body=body, headers=REQUEST_HEADER)
-    resp = conn.getresponse()
+    rhs = timestamp.value
+    cursor = None
 
-    assert resp.status == 200
-    bbody = resp.read()
-    patients_doc = json.loads(bbody.decode())
+    while True:
+        body = {
+            'page_size': '25',
+            'global_sort_key': 'created_time',
+            'filterJson': json.dumps({
+                'rules': [{'LHS': 'created_time', 'CONDITION': 'AFTER', 'RHS': rhs * 1000}],
+                'contact_type': 'COMPANY'})}
+        if cursor:
+            body['cursor'] = cursor
+            cursor = None
 
-    if patients_doc:
-        for doc in patients_doc:
-            if doc.get('updated_time', 0) != 0:
-                continue
-            update_patient(conn, doc)
-            timestamp.value = doc['created_time']
-        timestamp.save()
+        conn.request('POST', '/dev/api/filters/filter/dynamic-filter',
+                     body=urlencode(body), headers=REQUEST_HEADER)
+        resp = conn.getresponse()
+
+        assert resp.status == 200
+        bbody = resp.read()
+        patients_doc = json.loads(bbody.decode())
+
+        c = 0
+        if patients_doc:
+            for doc in patients_doc:
+                if doc.get('updated_time', 0) != 0:
+                    continue
+                update_patient(conn, doc)
+                c += 1
+                timestamp.value = max(timestamp.value, doc['created_time'])
+            timestamp.save()
+
+        if not cursor:
+            break
 
     # Sync updated
     timestamp, _ = UkumpGlobal.objects.get_or_create(key='agilecrm_patients_sync_timestamp', defaults={'value': 0})
-    body = urlencode({
-        'page_size': '25',
-        'global_sort_key': 'updated_time',
-        'filterJson': json.dumps({
-            'rules': [{'LHS': 'updated_time', 'CONDITION': 'AFTER', 'RHS': timestamp.value}],
-            'contact_type': 'COMPANY'
-        })
-    })
-    conn.request('POST', '/dev/api/filters/filter/dynamic-filter',
-                 body=body, headers=REQUEST_HEADER)
-    resp = conn.getresponse()
+    rhs = timestamp.value
+    while True:
+        body = {
+            'page_size': '25',
+            'global_sort_key': 'updated_time',
+            'filterJson': json.dumps({
+                'rules': [{'LHS': 'updated_time', 'CONDITION': 'AFTER', 'RHS': rhs * 1000}],
+                'contact_type': 'COMPANY'
+            })}
+        if cursor:
+            body['cursor'] = cursor
+            cursor = None
 
-    assert resp.status == 200
-    bbody = resp.read()
-    patients_doc = json.loads(bbody.decode())
+        conn.request('POST', '/dev/api/filters/filter/dynamic-filter',
+                     body=urlencode(body), headers=REQUEST_HEADER)
+        resp = conn.getresponse()
 
-    c = 0
-    if patients_doc:
-        for doc in patients_doc:
-            update_patient(conn, doc)
-            timestamp.value = doc['updated_time']
-        timestamp.save()
+        assert resp.status == 200
+        bbody = resp.read()
+        patients_doc = json.loads(bbody.decode())
+
+        if patients_doc:
+            for doc in patients_doc:
+                c += 1
+                update_patient(conn, doc)
+                cursor = doc.get('cursor')
+                timestamp.value = max(timestamp.value, doc['updated_time'])
+
+            timestamp.save()
+        if not cursor:
+            break
 
     conn.close()
     return c
@@ -87,31 +107,44 @@ def sync_patients():
 
 def sync_customers():
     timestamp, _ = UkumpGlobal.objects.get_or_create(key='agilecrm_customer_sync_timestamp', defaults={'value': 0})
-    body = urlencode({
-        'page_size': '25',
-        'global_sort_key': 'updated_time',
-        'filterJson': json.dumps({
-            'rules': [{'LHS': 'updated_time', 'CONDITION': 'AFTER', 'RHS': 1508688000000}],
-            'contact_type': 'PERSON'
-        })
-    })
-    conn = HTTPSConnection(DOMAIN)
-    conn.request('POST', '/dev/api/filters/filter/dynamic-filter',
-                 body=body, headers=REQUEST_HEADER)
-    resp = conn.getresponse()
+    cursor = None
+    rhs = timestamp.value
 
-    assert resp.status == 200
-    bbody = resp.read()
-    customers_doc = json.loads(bbody.decode())
+    while True:
+        body = {
+            'page_size': '25',
+            'global_sort_key': 'updated_time',
+            'filterJson': json.dumps({
+                'rules': [{'LHS': 'updated_time', 'CONDITION': 'AFTER', 'RHS': rhs * 1000}],
+                'contact_type': 'PERSON'})}
+        if cursor:
+            body['cursor'] = cursor
+            cursor = None
 
-    c = 0
-    if customers_doc:
-        for doc in customers_doc:
-            customer = Customer.objects.filter(profile__agilrcrm=doc['id']).order_by('id').first()
-            if customer:
-                update_customer(customer, doc)
-        timestamp.value = customers_doc[-1]['updated_time'] or customers_doc[-1]['created_time']
-        timestamp.save()
+        conn = HTTPSConnection(DOMAIN)
+        conn.request('POST', '/dev/api/filters/filter/dynamic-filter',
+                     body=urlencode(body), headers=REQUEST_HEADER)
+        resp = conn.getresponse()
+
+        assert resp.status == 200
+        bbody = resp.read()
+        customers_doc = json.loads(bbody.decode())
+
+        c = 0
+        if customers_doc:
+            for doc in customers_doc:
+                customer = Customer.objects.filter(profile__agilrcrm=doc['id']).order_by('id').first()
+                if customer:
+                    c += 1
+                    update_customer(customer, doc)
+                timestamp.value = max(timestamp.value, max(doc['updated_time'], doc['created_time']))
+                cursor = doc.get('cursor')
+            timestamp.save()
+            time.sleep(1.0)
+
+        if not cursor:
+            break
+
     conn.close()
     return c
 
