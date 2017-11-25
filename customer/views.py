@@ -163,7 +163,7 @@ class LineAssociation(object):
 
         try:
             patient = Patient.objects.get(extend__case_id=case_id)
-            if patient.customers.filter(id=customer.id - 100000):
+            if patient.customers.filter(id=customer.id):
                 messages.error(request, '重複加入個案')
             else:
                 master = patient.customers.get(guardian__master=True)
