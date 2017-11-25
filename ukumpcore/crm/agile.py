@@ -53,8 +53,8 @@ def sync_patients():
             if doc.get('updated_time', 0) != 0:
                 continue
             update_patient(conn, doc)
-        # timestamp.value = patients_doc[-1]['created_time']
-        # timestamp.save()
+            timestamp.value = doc['created_time']
+        timestamp.save()
 
     # Sync updated
     timestamp, _ = UkumpGlobal.objects.get_or_create(key='agilecrm_patients_sync_timestamp', defaults={'value': 0})
@@ -74,13 +74,15 @@ def sync_patients():
     bbody = resp.read()
     patients_doc = json.loads(bbody.decode())
 
+    c = 0
     if patients_doc:
         for doc in patients_doc:
             update_patient(conn, doc)
-        timestamp.value = patients_doc[-1]['updated_time']
+            timestamp.value = doc['updated_time']
         timestamp.save()
 
     conn.close()
+    return c
 
 
 def sync_customers():
@@ -102,6 +104,7 @@ def sync_customers():
     bbody = resp.read()
     customers_doc = json.loads(bbody.decode())
 
+    c = 0
     if customers_doc:
         for doc in customers_doc:
             customer = Customer.objects.filter(profile__agilrcrm=doc['id']).order_by('id').first()
@@ -110,6 +113,7 @@ def sync_customers():
         timestamp.value = customers_doc[-1]['updated_time'] or customers_doc[-1]['created_time']
         timestamp.save()
     conn.close()
+    return c
 
 
 @transaction.atomic
@@ -129,6 +133,7 @@ def update_patient(conn, doc):
         patient.extend['title'] = attrs['Appellation']
     patient.save()
 
+    patient.guardian_set.filter(master=True).delete()
     if 'Contact Window' in attrs:
         for crm_customer_id in map(int, json.loads(attrs['Contact Window'])):
             c = Customer.objects.filter(profile__agilrcrm=crm_customer_id).order_by('id').first()
@@ -137,9 +142,10 @@ def update_patient(conn, doc):
             g = patient.guardian_set.filter(customer=c).first()
             if g:
                 g.relation = patient.extend.get('title', '未填寫')
+                g.master = True
                 g.save()
             else:
-                patient.guardian_set.create(customer=c, relation=patient.extend.get('title', '未填寫'))
+                patient.guardian_set.create(customer=c, relation=patient.extend.get('title', '未填寫'), master=True)
 
     employee = update_employee(doc['owner'])
     relations = patient.manager_set.filter(relation='照護經理')
@@ -160,7 +166,7 @@ def update_employee(doc):
         employee = Employee(profile={'agilecrm': doc['id']}, members=[])
     employee.name = doc['name']
     employee.profile['email'] = doc.get('email')
-    employee.profile['phone'] = doc.get('phone')
+    employee.profile['phone'] = doc.get('phone', '').replace('-', '')
     employee.save()
     return employee
 
@@ -185,7 +191,7 @@ def update_customer(customer, crm_profile):
     customer.name = '%s%s' % (attrs.get('last_name', ''), attrs.get('first_name', ''))
     profile = customer.profile
     if 'phone' in attrs:
-        profile['phone'] = attrs['phone']
+        customer.phone = profile['phone'] = attrs['phone'].replace('-', '')
     if 'email' in attrs:
         profile['email'] = attrs['email']
     if 'email' in attrs:

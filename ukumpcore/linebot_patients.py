@@ -10,6 +10,7 @@ import json
 import pytz
 
 from ukumpcore.crm.agile import create_crm_ticket, get_patient_crm_url
+from customer.models import Profile as Customer
 from patient.models import Profile as Patient
 from . import linebot_utils as utils
 
@@ -209,3 +210,32 @@ def handle_postback(line_bot, event, resp):
 
 def handle_message(line_bot, event, message, data):
     final_ticket(line_bot, event, message, data)
+
+
+def handle_association(line_bot, event, resp):
+    action, pid, cid = resp['value']
+
+    customer = utils.get_customer(event)
+    request_from = Customer.objects.get(id=cid)
+
+    try:
+        patient = customer.patients.get(guardian__master=True, id=pid)
+        relation = cache.get('_line_asso_add:%i_%i' % (pid, cid))
+
+        if relation:
+            cache.delete('_line_asso_add:%i_%i' % (pid, cid))
+            if action:
+                patient.guardian_set.create(customer=request_from, relation=relation, master=False)
+                for employee in patient.managers.filter(manager__relation='照護經理'):
+                    employee.push_message('%s 已經授權家屬 %s 加入 %s 的照護群組' % (customer.name, request_from.name, patient.name))
+                line_bot.reply_message(event.reply_token, TextSendMessage(
+                    text='已經授權 %s 加入 %s 照護群組請求。' % (request_from.name, patient.name)))
+            else:
+                line_bot.reply_message(event.reply_token, TextSendMessage(
+                    text='已經撤銷 %s 加入 %s 照護群組請求。' % (request_from.name, patient.name)))
+        else:
+            line_bot.reply_message(event.reply_token, TextSendMessage(
+                text='授權群組請求已經過期或已經被撤銷，請家屬重新提出加入請求。'))
+    except (Patient.DoesNotExist, Patient.MultipleObjectsReturned):
+        line_bot.reply_message(event.reply_token, TextSendMessage(
+            text='無權限執行此操作'))

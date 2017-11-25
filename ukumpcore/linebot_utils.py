@@ -1,13 +1,16 @@
 
-from linebot.models import PostbackTemplateAction, CarouselColumn
 from django.contrib.auth import get_user_model
 from django.shortcuts import redirect
 from django.utils import timezone
 from django.urls import reverse
+from django.conf import settings
 from collections import namedtuple
 from urllib.parse import quote
 import pytz
 import json
+
+from linebot.models import PostbackTemplateAction, CarouselColumn
+from linebot import LineBotApi
 
 from patient.models import Profile as Patient
 from employee.models import Profile as Employee, LineBotIntegration as EmployeeLineBotIntegration
@@ -16,6 +19,7 @@ from customer.models import Profile as Customer, LineBotIntegration as CustomerL
 Cases = namedtuple('Cases', ['owner', 'patients'])
 Patients = namedtuple('Patients', ['manager', 'nurse', 'customer'])
 fix_tz = pytz.timezone('Etc/GMT-8')
+line_bot = LineBotApi(settings.LINEBOT_ACCESS_TOKEN)
 
 
 def get_employees_lineid(employees):

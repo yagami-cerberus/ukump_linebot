@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block page_title %}註冊{% endblock %}
+{% block content %}
+<div class="container" style="margin-top: 1em;">
+    <h3>客戶註冊</h3>
+    <hr />
+    <form method='post'>
+        {% csrf_token %}
+        <div class="form-group">
+            <label>姓名</label>
+            <input type="text" name="cname" class="form-control" placeholder="姓名" value="{{ request.POST.cname }}" required />
+        </div>
+        <div class="form-group">
+            <label>電話號碼</label>
+            <input type="text" name="cnum" class="form-control" placeholder="電話號碼" value="{{ request.POST.cnum }}" required />
+        </div>
+        <div class="form-group">
+            <label>電子郵件</label>
+            <input type="email" name="cemail" class="form-control" placeholder="電子郵件" value="{{ request.POST.cemail }}" required />
+        </div>
+        {% if confirm %}
+        <div class="form-group">
+            <label>確認碼</label>
+            <input type="text" name="confirm-code" class="form-control" placeholder="確認碼" />
+        </div>
+        {% endif %}
+        {% if confirm %}
+        <div class="row">
+            <div class="col-6">
+                <button class="btn btn-primary" type="submit" name="submit" value="confirm">確認</button>
+            </div>
+            <div class="col-6 text-right">
+                <button class="btn btn-danger" type="submit" name="submit" value="check">重新發送確認碼</button>
+            </div>
+        </div>
+        {% else %}
+        <div class="form-group">
+            <button class="btn btn-primary" type="submit" name="submit" value="check">繼續</button>
+        </div>
+        {% endif %}
+    </form>
+</div>
+{% endblock %}

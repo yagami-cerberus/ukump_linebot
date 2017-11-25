@@ -51,6 +51,7 @@ class Guardian(models.Model):
 
     patient = models.ForeignKey(Profile)
     customer = models.ForeignKey("customer.Profile")
+    master = models.BooleanField(null=False, default=False)
     relation = models.TextField(null=True)
 
 
@@ -84,16 +85,6 @@ class ScheduleManager(models.Manager):
     def today_schedule(self):
         return self.get_queryset().extra(where=(
             "(LOWER(schedule) AT TIME ZONE 'Asia/Taipei')::Date = (current_timestamp AT TIME ZONE 'Asia/Taipei')::Date",))
-
-
-# class SpecialCourseSchedule(models.Model):
-#     class Meta:
-#         db_table = "patient_special_course_table"
-
-#     name = models.TextField()
-#     patient = models.ForeignKey(Profile, related_name="special_course_schedule")
-#     employee = models.ForeignKey("employee.Profile")
-#     schedule = DateTimeRangeField()
 
 
 class NursingSchedule(models.Model):

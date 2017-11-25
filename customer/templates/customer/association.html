@@ -2,65 +2,18 @@
 {% block page_title %}註冊{% endblock %}
 {% block content %}
 <div class="container" style="margin-top: 1em;">
-    {% if messages %}
-        {% for message in messages %}
-            {% if message.level == DEFAULT_MESSAGE_LEVELS.ERROR %}
-                <div class="alert alert-danger" role="alert">
-            {% else %}
-                <div class="alert alert-primary" role="alert">
-            {% endif %}
-            {{ message.message }}</div>
-        {% endfor %}
-    {% endif %}
-
-    {% if role == 'customer' %}
-    <h3>註冊</h3>
-    <hr />
-    <form method='post'>
-        {% csrf_token %}
-        <div class="row">
-            <label class="col-2 col-form-label">病患代碼</label>
-            <div class="col-10">
-                <input type="text" name="pcode" class="form-control" placeholder="病患代碼" value="{{ request.POST.pcode }}" required />
-            </div>
-        </div>
-        <div class="row">
-            <label class="col-2 col-form-label">電話號碼</label>
-            <div class="col-10">
-                <input type="text" name="pnum" class="form-control" placeholder="電話號碼" value="{{ request.POST.pnum }}" required />
-            </div>
-        </div>
-        {% if confirm %}
-        <div class="row">
-            <label class="col-2 col-form-label">確認碼</label>
-            <div class="col-10">
-                <input type="text" name="confirm-code" class="form-control" placeholder="確認碼" />
-            </div>
-        </div>
-        {% endif %}
-        <div class="row">
-            <div class="col-6">
-                <button class="btn btn-primary" type="submit" name="submit" value="check">發送確認碼</button>
-            </div>
-            {% if confirm %}
-            <div class="col-6 text-right">
-                <button class="btn btn-primary" type="submit" name="submit" value="confirm">確認</button>
-            </div>
-            {% endif %}
-        </div>
-    </form>
-
-    {% elif role == 'employee' %}
-    {% else %}
     <h3>請選擇身份</h3>
     <hr />
-    <div>
+    <div style='margin: 1em'>
         <a href="{% url 'line_association' 'customer' %}" class="btn btn-lg btn-primary"
+            style="width: 100%; padding-top: 10%; padding-bottom: 10%;">客戶</a>
+    </div>
+    <div style='margin: 1em'>
+        <a href="{% url 'line_association' 'guest' %}" class="btn btn-lg btn-info"
             style="width: 100%; padding-top: 10%; padding-bottom: 10%;">家屬</a>
     </div>
-    <div class="text-center" style="margin-top: 2em;">
+    <div class="text-center" style="margin: 1em;">
         <a href="{% url 'line_association' 'employee' %}">照服員</a>
     </div>
-    {% endif %}
 </div>
 {% endblock %}

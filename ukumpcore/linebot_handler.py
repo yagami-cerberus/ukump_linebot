@@ -11,24 +11,19 @@ from django.urls import reverse
 from django.db import connection, transaction
 import json
 
-from linebot import LineBotApi, WebhookHandler
+from linebot import WebhookHandler
 from linebot.models import (
-    MessageEvent, PostbackEvent, LocationMessage, TextMessage, TextSendMessage, PostbackTemplateAction,
+    MessageEvent, PostbackEvent, LocationMessage, TextMessage, TextSendMessage, PostbackTemplateAction, ConfirmTemplate,
     TemplateSendMessage, ButtonsTemplate, CarouselTemplate, CarouselColumn, URITemplateAction, MessageTemplateAction
 )
 
 from . import linebot_emergency, linebot_patients, linebot_report, linebot_simplequery, linebot_nursing
-from ukumpcore.linebot_utils import NotMemberError, LineMessageError, is_system_admin
+from ukumpcore.linebot_utils import line_bot, NotMemberError, LineMessageError, is_system_admin
 from patient.models import CareDailyReport
 from employee.models import LineMessageQueue as EmployeeLineMessageQueue
 from customer.models import LineMessageQueue as CustomerLineMessageQueue
 
-
-ACCESS_TOKEN = settings.LINEBOT_ACCESS_TOKEN
-ACCESS_SECRET = settings.LINEBOT_ACCESS_SECRET
-
-line_bot = LineBotApi(ACCESS_TOKEN)
-handler = WebhookHandler(ACCESS_SECRET)
+handler = WebhookHandler(settings.LINEBOT_ACCESS_SECRET)
 
 
 def line_error_handler(fn):
@@ -120,6 +115,23 @@ def flush_message(record):
             alt_text=alt,
             template=CarouselTemplate(columns=columns)))
 
+    elif message_type == 'confirm':
+        text = data['text']
+        title = data.get('title')
+        alt = data.get('alt') or title or text
+        if title:
+            title = title[:40]
+            text = text[:60]
+        else:
+            text = text[:160]
+
+        line_bot.push_message(line_id, TemplateSendMessage(
+            alt_text=alt,
+            template=ConfirmTemplate(
+                title=title,
+                text=text, actions=[_build_linebot_action(a) for a in data['actions']][:2]))
+        )
+
     elif message_type == 'u':
         line_actions = [URITemplateAction(label, value) for label, value in data['u']]
         line_bot.push_message(line_id, TemplateSendMessage(
@@ -166,6 +178,8 @@ def handle_postback(event):
         linebot_simplequery.handle_postback(line_bot, event, resp)
     elif target == linebot_nursing.T_NURSING:
         linebot_nursing.handle_postback(line_bot, event, resp)
+    elif target == 'association':
+        linebot_patients.handle_association(line_bot, event, resp)
 
 
 @handler.add(MessageEvent, message=TextMessage)

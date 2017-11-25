@@ -7,5 +7,5 @@ class Command(BaseCommand):
     help = 'Sync Align CRM'
 
     def handle(self, *args, **options):
-        sync_patients()
-        sync_customers()
+        print('Patient: %s records synced' % sync_patients())
+        print('Customer: %s records synced' % sync_customers())
