@@ -21,6 +21,7 @@ from patient.models import (
     CareDailyReport)
 from ukumpcore.linebot_utils import get_customer_id_from_lineid, get_employee_id_from_lineid, get_employee_from_lineid, get_customer_from_lineid
 from ukumpcore.linebot_handler import flush_messages_queue
+from ukumpcore.blackbox import daily_report_processor
 from ukumpcore.crm.agile import create_crm_ticket, get_patient_crm_url
 
 TIME_12HR = 43200
@@ -43,9 +44,21 @@ logger = logging.getLogger('ukump')
 REPORT_FIELDS = (('血壓/收縮壓(mmHg)', '血壓'), ('血壓/舒張壓(mmHg)', ''), ('脈搏(次/分)', '脈搏'), ('個案情緒', '個案情緒'), ('參與狀況', '參與狀況'))
 
 
-def _pop_fields(report):
-    for key, label in REPORT_FIELDS:
-        yield report.get(key, '')
+class ReportsData(object):
+    def __init__(self, it):
+        self.data = tuple(it)
+
+    def __iter__(self):
+        return self.data.__iter__()
+
+    def to_json(self):
+        jdata = []
+        for record, dataset in self:
+            jdata.append({
+                'date': record.report_date.strftime('%Y-%m-%d'),
+                'report': dataset
+            })
+        return json.dumps(jdata)
 
 
 @require_lineid
@@ -64,7 +77,7 @@ def summary(request, patient_id):
         return render(request, 'patient/summary.html', {
             'members': ((label, members[label]) for label in members_list if label in members),
             'patient': patient,
-            'reports': ((r, _pop_fields(r.report)) for r in patient.caredailyreport_set.order_by('report_date', 'report_period')),
+            'reports': ReportsData((r, dict(daily_report_processor(r.report))) for r in patient.caredailyreport_set.order_by('report_date', 'report_period')),
             'fields': REPORT_FIELDS
         })
     else:

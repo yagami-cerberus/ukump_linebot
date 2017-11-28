@@ -1,14 +1,292 @@
 {% extends 'base.html' %}
-{% block page_title %}行程{% endblock %}
+{% block page_title %}{{ patient.name }} 的報告{% endblock %}
 {% block content %}
-<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.1/Chart.bundle.min.js" integrity="sha256-N4u5BjTLNwmGul6RgLoESPNqDFVUibVuOYhP4gJgrew=" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.1/Chart.min.js" integrity="sha256-c0m8xzX5oOBawsnLVpHnU2ieISOvxi584aNElFl2W6M=" crossorigin="anonymous"></script>
 <style>
-.summary-card {
-    margin-bottom: 2em;
+.card-header {
+    font-weight: bold;
+}
+
+.container-fluid .card {
+    margin-top: 1em;
+}
+
+canvas {
+    height: 250px;
 }
 </style>
+<script>
+function check_data(data) {
+    return (data && data.status && data.status !== "INVALID")
+}
 
-<div class="container">
+function process_blood_pressure(source) {
+    var data_hi = [120, 110, 112, 115, 120, 110, 112, 115],
+        data_lo = [80, 90, 85, 90, 80, 90, 85, 90];
+        timeline = ['2017-10-20', '2017-10-21', '2017-10-22', '2017-10-23', 
+                    '2017-11-01', '2017-11-02', '2017-11-03', '2017-11-04',]
+    var min = 80,
+        max = 120;
+
+    for(let i=0;i<source.length;i++) {
+        if (!check_data(source[i].report['血壓'])) {
+            continue;
+        }
+
+        var hi = source[i].report['血壓'].value[0];
+            lo = source[i].report['血壓'].value[1];
+            date = source[i].date;
+
+        if (hi && lo && date) {
+            data_hi.push(hi);
+            data_lo.push(lo);
+            timeline.push(date);
+            min = min < lo ? min : lo;
+            max = max > hi ? max : hi;
+        }
+    }
+
+    return {
+        type: 'line',
+        data: {
+        labels: timeline,
+        datasets: [
+            {
+                backgroundColor: "rgba(255, 255, 255, 0)",
+                borderColor: "rgb(99, 132, 255)",
+                label: '舒張壓',
+                data: data_lo
+            },
+            {
+                backgroundColor: "rgba(200, 200, 200, 0.5)",
+                borderColor: "rgb(255, 99, 132)",
+                label: '收縮壓',
+                data: data_hi,
+                fill: '-1'
+            }]
+        },
+        options: {
+            responsive: true,
+            legend: {display: false},
+            maintainAspectRatio: false,
+            spanGaps: false,
+            elements: {
+                line: {
+                    tension: 0.200000
+                }
+            },
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        min: min - 10,
+                        max: max + 10,
+                    }
+                }]
+            },
+            plugins: {
+                filler: {
+                    propagate: false
+                },
+                samples_filler_analyser: {
+                    target: 'chart-analyser'
+                }
+            }
+        }
+    }
+}
+
+function process_pulse(source) {
+    var data = [80, 70, 75, 90, 80, 70, 75, 90],
+        timeline = ['2017-10-20', '2017-10-21', '2017-10-22', '2017-10-23', 
+                    '2017-11-01', '2017-11-02', '2017-11-03', '2017-11-04',]
+    var min = 70,
+        max = 90;
+
+    for(let i=0;i<source.length;i++) {
+        if (!check_data(source[i].report['脈搏'])) {
+            continue;
+        }
+
+        var val = source[i].report['脈搏'].value;
+            date = source[i].date;
+
+        if (val && date) {
+            data.push(val);
+            timeline.push(date);
+            min = min < val ? min : val;
+            max = max > val ? max : val;
+        }
+    }
+
+    return {
+        type: 'line',
+        data: {
+        labels: timeline,
+        datasets: [
+            {
+                borderColor: "rgba(153, 102, 155, 0.85)",
+                label: '脈搏',
+                data: data,
+                fill: false
+            }]
+        },
+        options: {
+            responsive: true,
+            legend: {display: false},
+            maintainAspectRatio: false,
+            spanGaps: false,
+            elements: {
+                line: {
+                    tension: 0.000001
+                }
+            },
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        min: min - 10,
+                        max: max + 10,
+                    }
+                }]
+            }
+        }
+    }
+}
+
+function process_body_temperature(source) {
+    var data = [36, 36.1, 36.5, 36.4, 36, 36.1, 36.5, 36.4],
+        timeline = ['2017-10-20', '2017-10-21', '2017-10-22', '2017-10-23', 
+                    '2017-11-01', '2017-11-02', '2017-11-03', '2017-11-04',]
+    var min = 36,
+        max = 36.5;
+
+    for(let i=0;i<source.length;i++) {
+        if (!check_data(source[i].report['體溫'])) {
+            continue;
+        }
+
+        var val = source[i].report['體溫'].value;
+            date = source[i].date;
+
+        if (val && date) {
+            data.push(val);
+            timeline.push(date);
+            min = min < val ? min : val;
+            max = max > val ? max : val;
+        }
+    }
+
+    return {
+        type: 'line',
+        data: {
+        labels: timeline,
+        datasets: [
+            {
+                borderColor: "rgba(75, 162, 162, 0.85)",
+                label: '體溫',
+                data: data,
+                fill: false
+            }]
+        },
+        options: {
+            responsive: true,
+            legend: {display: false},
+            maintainAspectRatio: false,
+            spanGaps: false,
+            elements: {
+                line: {
+                    tension: 0.000001
+                }
+            },
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        min: min - 2,
+                        max: max + 2,
+                    }
+                }]
+            }
+        }
+    }
+}
+
+function process_breathe(source) {
+    var data = [40, 41, 42, 40, 50, 41, 42, 40],
+        timeline = ['2017-10-20', '2017-10-21', '2017-10-22', '2017-10-23', 
+                    '2017-11-01', '2017-11-02', '2017-11-03', '2017-11-04',]
+    var min = 40,
+        max = 50;
+
+    for(let i=0;i<source.length;i++) {
+        if (!check_data(source[i].report['呼吸'])) {
+            continue;
+        }
+
+        var val = source[i].report['呼吸'].value;
+            date = source[i].date;
+
+        if (val && date) {
+            data.push(val);
+            timeline.push(date);
+            min = min < val ? min : val;
+            max = max > val ? max : val;
+        }
+    }
+
+    return {
+        type: 'line',
+        data: {
+        labels: timeline,
+        datasets: [
+            {
+                borderColor: "rgba(255, 159, 64, 0.85)",
+                label: '呼吸',
+                data: data,
+                fill: false
+            }]
+        },
+        options: {
+            responsive: true,
+            legend: {display: false},
+            maintainAspectRatio: false,
+            spanGaps: false,
+            elements: {
+                line: {
+                    tension: 0.000001
+                }
+            },
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        min: min - 5,
+                        max: max + 5,
+                    }
+                }]
+            }
+        }
+    }
+}
+
+
+var source_dataset = {{ reports.to_json|safe }};
+
+var dataset = {
+    blood_pressure: process_blood_pressure(source_dataset),
+    pulse: process_pulse(source_dataset),
+    body_temperature: process_body_temperature(source_dataset),
+    breathe: process_breathe(source_dataset)
+}
+
+
+$(() => {
+    for (let chart_id of ['blood_pressure', 'pulse', 'body_temperature', 'breathe']) {
+        var ctx = document.getElementById(chart_id + '_chart');
+        window[chart_id + '_chart'] = new Chart(ctx, dataset[chart_id]);
+    }
+});
+</script>
+
+<div class="container-fluid">
     <div style="display: inline-block">
         <img src="http://via.placeholder.com/100x100" />
     </div>
@@ -25,6 +303,51 @@
     </div>
 </div>
 
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12 col-md-6">
+            <div class="card">
+              <div class="card-header">血壓</div>
+              <div class="card-block">
+                <canvas id='blood_pressure_chart'></canvas>
+              </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-6">
+            <div class="card">
+              <div class="card-header">脈搏</div>
+              <div class="card-block">
+                <canvas id='pulse_chart'></canvas>
+              </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12 col-md-6">
+            <div class="card">
+              <div class="card-header">體溫</div>
+              <div class="card-block">
+                <canvas id='body_temperature_chart'></canvas>
+              </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-6">
+            <div class="card">
+              <div class="card-header">呼吸</div>
+              <div class="card-block">
+                <canvas id='breathe_chart'></canvas>
+              </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!--<canvas id="myChart" width="400px" height="400px"></canvas>-->
+
 
 <!-- <nav aria-label="breadcrumb" role="navigation">
   <ol class="breadcrumb">
@@ -37,26 +360,34 @@
   </ol>
 </nav>
  -->
+<br />
+<br />
 
 <table class="table">
     <thead>
         <th>日期</th>
-        {% for key, label in fields %}
-        <th>{{ label }}</th>
-        {% endfor %}
+
+        <th>血壓</th>
+        <th>脈搏</th>
+        <th>情緒</th>
+        <th>活動參與</th>
+
         <th>填寫</th>
         <th>審核</th>
     </thead>
     <tbody>
-        {% for report, values in reports %}
+        {% for report, dataset in reports %}
         <tr>
             <td>
                 {{ report.report_date|date:"Y-m-d" }}<br />
                 <small class="text-secondary">{{ report.form_name }}</small>
             </td>
-            {% for val in values %}
-            <td>{{ val }}</td>
-            {% endfor %}
+
+            <td>{% if dataset.血壓.value %}{{ dataset.血壓.value.0 }} / {{ dataset.血壓.value.1 }}{% endif %}</td>
+            <td>{{ dataset.脈搏.value }}</td>
+            <td>{{ dataset.情緒.text }}</td>
+            <td>{{ dataset.活動參與.text }}</td>
+
             <td>{{ report.filled_by.name }}</td>
             <td>{{ report.reviewed_by.name }}</td>
         </tr>

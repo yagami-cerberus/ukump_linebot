@@ -3,6 +3,12 @@ from PIL import Image, ImageDraw, ImageFont
 from itertools import chain
 import os
 
+NORMAL = 'NORMAL'
+WARNING = 'WARNING'
+DANGER = 'DANGER'
+INVALID = 'INVALID'
+STATUS = (NORMAL, WARNING, DANGER)
+
 CATALOG = {
     0: ("生理狀態", ),
     1: ("精神狀況", ),
@@ -21,7 +27,7 @@ KEY_MAPPING = {
     '體溫': '體溫(℃)',
 
     '意識情形': '意識情形',
-    '知覺狀況': '知覺狀況',
+    '知覺': '知覺狀況',
     '睡眠': '前晚睡眠情形',
     '行為': '特殊行為',
     '情緒': '個案情緒',
@@ -32,7 +38,7 @@ KEY_MAPPING = {
     '小便': '小便',
     '用藥': '用藥',
 
-    '活動參與情形': '參與狀況'
+    '活動參與': '參與狀況'
 }
 
 VALUE_MAPPING = {
@@ -42,7 +48,7 @@ VALUE_MAPPING = {
         '混亂': 1, '嗜睡': 1, '反應遲鈍': 1,
         '只對痛覺有一點反應': 2, '清醒程度反覆': 2, '無反應': 2
     },
-    '知覺狀況': {
+    '知覺': {
         '正常': 0,
         '幻想': 1, '幻聽': 1, '錯覺': 1,
         '譫妄': 2
@@ -74,12 +80,27 @@ VALUE_MAPPING = {
         '拒絕服藥': 2, '服藥後嘔吐(無法補藥)': 2
     },
 
-    '活動參與情形': {
+    '活動參與': {
         '主動': 0, '配合': 0,
         '被動': 1, '須引導': 1,
         '反覆異常': 4, '拒絕': 4,
     }
 }
+
+
+def get_int(report, key):
+    realkey = KEY_MAPPING[key]
+    try:
+        return int(report.get(realkey))
+    except (ValueError, TypeError):
+        return None
+
+
+def get_mapping(report, key):
+    realkey = KEY_MAPPING[key]
+    mapping = VALUE_MAPPING[key]
+    value = report.get(realkey)
+    return (value, mapping[value]) if value in mapping else (value, None)
 
 
 def get_mappings(reports, key):
@@ -263,7 +284,7 @@ def process_card_2(reports):
     g1 = max((val % 3 for val in get_mappings(reports, '意識情形')), default=0)
     status.append(('意識情形', g1 + 1))
 
-    g2 = max((val % 3 for val in get_mappings(reports, '知覺狀況')), default=0)
+    g2 = max((val % 3 for val in get_mappings(reports, '知覺')), default=0)
     status.append(('知覺', g2 + 1))
 
     g3 = max((val % 3 for val in get_mappings(reports, '睡眠')), default=0)
@@ -308,10 +329,57 @@ process_card_3.catalog_id = 2
 def process_card_4(reports):
     status = []
 
-    g1 = max((get_mappings(reports, '活動參與情形')), default=0)
+    g1 = max((get_mappings(reports, '活動參與')), default=0)
     status.append(('活動參與', g1 + 1))
     return status
 process_card_4.catalog_id = 3
 
 
 cards = (process_card_1, process_card_2, process_card_3, process_card_4)
+
+
+def daily_report_processor(report):
+    bph = get_int(report, '收縮壓')
+    bpl = get_int(report, '舒張壓')
+    if not bph or not bpl:
+        yield '血壓', {'status': INVALID}
+    elif bph > 140 or bpl > 90:
+        yield '血壓', {'status': DANGER, 'value': (bpl, bph)}
+    elif bph > 120 or bpl > 80:
+        yield '血壓', {'status': WARNING, 'value': (bpl, bph)}
+    else:
+        yield '血壓', {'status': NORMAL, 'value': (bpl, bph)}
+
+    hb = get_int(report, '脈搏')
+    if not hb:
+        yield '脈搏', {'status': INVALID}
+    elif hb > 100 or hb < 40:
+        yield '脈搏', {'status': DANGER, 'value': hb}
+    elif hb > 80:
+        yield '脈搏', {'status': WARNING, 'value': hb}
+    else:
+        yield '脈搏', {'status': NORMAL, 'value': hb}
+
+    bt = get_int(report, '體溫')
+    if not bt:
+        yield '體溫', {'status': INVALID}
+    elif bt > 100:
+        yield '體溫', {'status': DANGER, 'value': bt}
+    elif bt > 80:
+        yield '體溫', {'status': WARNING, 'value': bt}
+    else:
+        yield '體溫', {'status': NORMAL, 'value': bt}
+
+    bf = get_int(report, '呼吸')
+    if not bf:
+        yield '呼吸', {'status': INVALID}
+    elif bf > 100 or bf < 10:
+        yield '呼吸', {'status': DANGER, 'value': bf}
+    elif bf > 80:
+        yield '呼吸', {'status': WARNING, 'value': bf}
+    else:
+        yield '呼吸', {'status': NORMAL, 'value': bf}
+
+    for catalog in ('意識情形', '知覺', '睡眠', '行為', '情緒', '活動參與', '用藥'):
+        text, value = get_mapping(report, catalog)
+        yield catalog, {'status': INVALID if value is None else STATUS[value % 3], 'text': text}

@@ -13,7 +13,7 @@ import json
 
 from linebot import WebhookHandler
 from linebot.models import (
-    MessageEvent, PostbackEvent, LocationMessage, TextMessage, TextSendMessage, PostbackTemplateAction, ConfirmTemplate,
+    MessageEvent, PostbackEvent, FileMessage, LocationMessage, TextMessage, TextSendMessage, PostbackTemplateAction, ConfirmTemplate,
     TemplateSendMessage, ButtonsTemplate, CarouselTemplate, CarouselColumn, URITemplateAction, MessageTemplateAction
 )
 
@@ -180,6 +180,12 @@ def handle_postback(event):
         linebot_nursing.handle_postback(line_bot, event, resp)
     elif target == 'association':
         linebot_patients.handle_association(line_bot, event, resp)
+    elif target == 'attachfile':
+        message_content = line_bot.get_message_content(resp['file_id'])
+        if resp['catalog'] == 'schedule':
+            pass
+        elif resp['catalog'] == 'employee':
+            pass
 
 
 @handler.add(MessageEvent, message=TextMessage)
@@ -242,6 +248,23 @@ def handle_message(event):
 @line_error_handler
 def handle_location(event):
     pass
+
+
+@handler.add(MessageEvent, message=FileMessage)
+@line_error_handler
+def handle_attachment_file(event):
+    if is_system_admin(event):
+        file_id = event.message.id
+
+        line_bot.reply_message(event.reply_token, TemplateSendMessage(
+            alt_text='請選擇檔案處理方式',
+            template=ButtonsTemplate(
+                title='請選擇檔案處理方式',
+                text='檔案: %s' % event.message.file_name,
+                actions=(
+                    PostbackTemplateAction('班表', json.dumps({'T': 'attachfile', 'file_id': file_id, 'catalog': 'schedule'})),
+                    PostbackTemplateAction('員工清單', json.dumps({'T': 'attachfile', 'file_id': file_id, 'catalog': 'employee'})),
+                ))))
 
 
 @receiver([signals.post_save], sender=CareDailyReport)
