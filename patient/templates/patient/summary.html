@@ -42,8 +42,8 @@ function process_blood_pressure(source) {
             data_hi.push(hi);
             data_lo.push(lo);
             timeline.push(date);
-            min = min < lo ? min : lo;
-            max = max > hi ? max : hi;
+            min = Math.min(min, lo, hi);
+            max = Math.max(max, lo, hi);
         }
     }
 
@@ -114,8 +114,8 @@ function process_pulse(source) {
         if (val && date) {
             data.push(val);
             timeline.push(date);
-            min = min < val ? min : val;
-            max = max > val ? max : val;
+            min = Math.min(min, val);
+            max = Math.max(max, val);
         }
     }
 
@@ -171,8 +171,8 @@ function process_body_temperature(source) {
         if (val && date) {
             data.push(val);
             timeline.push(date);
-            min = min < val ? min : val;
-            max = max > val ? max : val;
+            min = Math.min(min, val);
+            max = Math.max(max, val);
         }
     }
 
@@ -228,8 +228,8 @@ function process_breathe(source) {
         if (val && date) {
             data.push(val);
             timeline.push(date);
-            min = min < val ? min : val;
-            max = max > val ? max : val;
+            min = Math.min(min, val);
+            max = Math.max(max, val);
         }
     }
 
