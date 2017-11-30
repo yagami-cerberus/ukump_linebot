@@ -5,7 +5,6 @@ from django.utils.timezone import now, localdate
 from django.utils.crypto import get_random_string
 from django.core.cache import cache
 from django.shortcuts import render, redirect
-# from django.contrib import messages
 from django.http import HttpResponse, Http404
 from django.conf import settings
 from django.urls import reverse

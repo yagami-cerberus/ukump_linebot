@@ -77,7 +77,7 @@ def prepare_dairly_cards():
             customer.push_raw_message(message)
 
 
-def request_cards(line_bot, event):
+def request_daily_reports(line_bot, event):
     result = utils.get_patients(event)
     count = sum(map(lambda x: x.patients.count(), result))
 

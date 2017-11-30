@@ -1,5 +1,5 @@
 
-from linebot.models import TemplateSendMessage, TextSendMessage, ButtonsTemplate, URITemplateAction, CarouselTemplate
+from linebot.models import TemplateSendMessage, TextSendMessage, ButtonsTemplate, URITemplateAction, CarouselTemplate, PostbackTemplateAction
 from django.utils import timezone
 from django.conf import settings
 from django.urls import reverse
@@ -12,6 +12,7 @@ from . import linebot_utils as utils
 T_REPORT = 'T_REPORT'
 
 STAGE_INIGITION = 'i'
+STAGE_REJECT = 'r'
 
 
 def manager_patient_label(p):
@@ -47,8 +48,22 @@ def ignition_report(line_bot, event):
                 select_patient(line_bot, event, patient=result.manager.patients.first(), role='m')
             elif result.nurse.patients:
                 select_patient(line_bot, event, patient=result.nurse.patients.first(), role='n')
+        else:
+            line_bot.reply_message(event.reply_token, TextSendMessage(text="沒有可用個案"))
     elif result.customer.owner:
-        line_bot.reply_message(event.reply_token, TextSendMessage(text="無功能。"))
+        count = len(result.customer.patients)
+        if count > 1:
+            columns = utils.generate_patients_card(
+                '家屬 %s' % result.nurse.owner.name, '請選擇日報表檢視個案',
+                {'S': '', 'T': T_REPORT, 'stage': STAGE_INIGITION, 'r': 'c'},
+                result.nurse.patients)
+            line_bot.reply_message(event.reply_token, TemplateSendMessage(
+                alt_text="請選擇個案",
+                template=CarouselTemplate(columns=columns)))
+        elif count == 1:
+            select_patient(line_bot, event, patient=result.nurse.patients.first(), role='c')
+        else:
+            line_bot.reply_message(event.reply_token, TextSendMessage(text="沒有可用個案"))
     else:
         raise utils.not_member_error
 
@@ -99,11 +114,42 @@ def select_patient(line_bot, event, value=None, patient=None, role=None):
                                                settings.SITE_ROOT + reverse('patient_daily_report', args=(patient.id, str_now, 18))),)))
 
         line_bot.reply_message(event.reply_token, reply_message)
+
+    elif role == 'c':
+        actions = []
+        meta = patient.extend if patient.extend else {}
+
+        bill_url = meta.get('bill_url')
+        payment_url = meta.get('payment_url')
+
+        if bill_url and (bill_url.startswith('http://') or bill_url.startswith('https://')):
+            actions.append(URITemplateAction('帳單查詢', bill_url))
+        else:
+            actions.append(PostbackTemplateAction('帳單查詢', {'T': T_REPORT, 'stage': STAGE_REJECT, 'V': '沒有帳單'}))
+
+        if payment_url and (payment_url.startswith('http://') or payment_url.startswith('https://')):
+            actions.append(URITemplateAction('線上繳費', payment_url))
+        else:
+            actions.append(PostbackTemplateAction('線上繳費', {'T': T_REPORT, 'stage': STAGE_REJECT, 'V': '沒有繳費資料'}))
+
+        actions.append(URITemplateAction('客戶滿意度', 'https://www.google.com/'))
+
+        line_bot.reply_message(event.reply_token, TemplateSendMessage(
+            alt_text='%s 照護秘書' % str_now,
+            template=ButtonsTemplate(
+                text='%s 照護秘書' % patient.name, actions=actions)))
+
     else:
         line_bot.reply_message(event.reply_token, TextSendMessage(text="params error"))
+
+
+def reject(line_bot, event, value):
+    line_bot.reply_message(event.reply_token, TextSendMessage(text=value))
 
 
 def handle_postback(line_bot, event, resp):
     stage, value = resp['stage'], resp.get('V')
     if stage == STAGE_INIGITION:
         select_patient(line_bot, event, value, role=resp.get('r'))
+    elif stage == STAGE_REJECT:
+        reject(line_bot, event, value)

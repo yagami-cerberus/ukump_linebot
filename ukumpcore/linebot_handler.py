@@ -17,7 +17,7 @@ from linebot.models import (
     TemplateSendMessage, ButtonsTemplate, CarouselTemplate, CarouselColumn, URITemplateAction, MessageTemplateAction
 )
 
-from . import linebot_emergency, linebot_patients, linebot_report, linebot_simplequery, linebot_nursing
+from . import linebot_emergency, linebot_patients, linebot_report, linebot_simplequery, linebot_nursing, linebot_customer
 from ukumpcore.linebot_utils import line_bot, NotMemberError, LineMessageError, is_system_admin
 from patient.models import CareDailyReport
 from employee.models import LineMessageQueue as EmployeeLineMessageQueue
@@ -194,13 +194,15 @@ def handle_message(event):
     if event.source.type != "user":
         raise RuntimeError("Unkown line message type: %s (%s)" % (event.source.type, event))
 
-    if event.message.text == '緊急通報':
-        linebot_emergency.ignition_emergency(line_bot, event)
-    elif event.message.text == '最新日報':
-        linebot_patients.request_cards(line_bot, event)
-    elif event.message.text == '檔案櫃':
+    if event.message.text == '由康照護':
+        linebot_customer.main_page(line_bot, event)
+    elif event.message.text == '照護日誌':
+        linebot_patients.request_daily_reports(line_bot, event)
+    # elif event.message.text == '緊急通報':
+    #     linebot_emergency.ignition_emergency(line_bot, event)
+    elif event.message.text == '照護秘書':
         linebot_report.ignition_report(line_bot, event)
-    elif event.message.text == '課程查詢':
+    elif event.message.text == '照護小叮嚀':
         linebot_simplequery.ignition(line_bot, event, linebot_simplequery.CATALOG_COURSE)
     elif event.message.text == '聯絡照護團隊':
         linebot_simplequery.ignition(line_bot, event, linebot_simplequery.CATALOG_CONTECT)
@@ -212,6 +214,8 @@ def handle_message(event):
             target = magic['T']
             if target == linebot_patients.T_PATIENT:
                 linebot_patients.handle_message(line_bot, event, event.message.text, magic)
+            elif target == linebot_simplequery.T_SIMPLE_QUERY:
+                linebot_simplequery.handle_message(line_bot, event, event.message.text, magic)
         else:
             if is_system_admin(event):
                 try:

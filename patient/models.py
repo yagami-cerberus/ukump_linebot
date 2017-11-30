@@ -1,12 +1,16 @@
 
 from django.contrib.postgres.fields import DateTimeRangeField
 from django.contrib.postgres.fields import JSONField
+from django.db.models.functions import Cast, TruncDate, Lower
+from django.utils.timezone import localdate, timedelta
 # from django.db.models import signals
 # from django.dispatch import receiver
 from django.conf import settings
 from django.db import models
 
 from care.models import CourseQuestion
+
+dt_field = models.DateTimeField()
 
 
 class ReportManager(models.Manager):
@@ -42,6 +46,16 @@ class Profile(models.Model):
 
     def __str__(self):
         return "%s#個案 %s" % (self.id, self.name)
+
+
+class DummyNote(models.Model):
+    class Meta:
+        db_table = "patient_note"
+
+    patient = models.ForeignKey(Profile)
+    name = models.TextField()
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
 
 
 class Guardian(models.Model):
@@ -85,6 +99,15 @@ class ScheduleManager(models.Manager):
     def today_schedule(self):
         return self.get_queryset().extra(where=(
             "(LOWER(schedule) AT TIME ZONE 'Asia/Taipei')::Date = (current_timestamp AT TIME ZONE 'Asia/Taipei')::Date",))
+
+    def scheduled_at(self, date):
+        return self.get_queryset().annotate(date=TruncDate(Cast(Lower('schedule'), dt_field))).filter(date=date)
+
+    def today(self):
+        return self.scheduled_at(localdate())
+
+    def tomorrow(self):
+        return self.scheduled_at(localdate() + timedelta(days=1))
 
 
 class NursingSchedule(models.Model):
