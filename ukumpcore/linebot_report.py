@@ -134,10 +134,13 @@ def select_patient(line_bot, event, value=None, patient=None, role=None):
 
         actions.append(URITemplateAction('客戶滿意度', 'https://www.google.com/'))
 
-        line_bot.reply_message(event.reply_token, TemplateSendMessage(
-            alt_text='%s 照護秘書' % str_now,
-            template=ButtonsTemplate(
-                text='%s 照護秘書' % patient.name, actions=actions)))
+        try:
+            line_bot.reply_message(event.reply_token, TemplateSendMessage(
+                alt_text='%s 照護秘書' % str_now,
+                template=ButtonsTemplate(
+                    text='%s 照護秘書' % patient.name, actions=actions)))
+        except Exception as err:
+            print(str(err), repr(err), err, actions)
 
     else:
         line_bot.reply_message(event.reply_token, TextSendMessage(text="params error"))
