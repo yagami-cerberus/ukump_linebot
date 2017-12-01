@@ -54,7 +54,7 @@ def ignition_report(line_bot, event):
         count = len(result.customer.patients)
         if count > 1:
             columns = utils.generate_patients_card(
-                '家屬 %s' % result.nurse.owner.name, '請選擇日報表檢視個案',
+                '家屬 %s' % result.customer.owner.name, '請選擇日報表檢視個案',
                 {'S': '', 'T': T_REPORT, 'stage': STAGE_INIGITION, 'r': 'c'},
                 result.nurse.patients)
             line_bot.reply_message(event.reply_token, TemplateSendMessage(
