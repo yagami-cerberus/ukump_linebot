@@ -56,12 +56,12 @@ def ignition_report(line_bot, event):
             columns = utils.generate_patients_card(
                 '家屬 %s' % result.customer.owner.name, '請選擇日報表檢視個案',
                 {'S': '', 'T': T_REPORT, 'stage': STAGE_INIGITION, 'r': 'c'},
-                result.nurse.patients)
+                result.customer.patients)
             line_bot.reply_message(event.reply_token, TemplateSendMessage(
                 alt_text="請選擇個案",
                 template=CarouselTemplate(columns=columns)))
         elif count == 1:
-            select_patient(line_bot, event, patient=result.nurse.patients.first(), role='c')
+            select_patient(line_bot, event, patient=result.customer.patients.first(), role='c')
         else:
             line_bot.reply_message(event.reply_token, TextSendMessage(text="沒有可用個案"))
     else:
@@ -134,13 +134,10 @@ def select_patient(line_bot, event, value=None, patient=None, role=None):
 
         actions.append(URITemplateAction('客戶滿意度', 'https://www.google.com/'))
 
-        try:
-            line_bot.reply_message(event.reply_token, TemplateSendMessage(
-                alt_text='%s 照護秘書' % str_now,
-                template=ButtonsTemplate(
-                    text='%s 照護秘書' % patient.name, actions=actions)))
-        except Exception as err:
-            print(str(err), repr(err), err, actions)
+        line_bot.reply_message(event.reply_token, TemplateSendMessage(
+            alt_text='%s 照護秘書' % str_now,
+            template=ButtonsTemplate(
+                text='%s 照護秘書' % patient.name, actions=actions)))
 
     else:
         line_bot.reply_message(event.reply_token, TextSendMessage(text="params error"))
