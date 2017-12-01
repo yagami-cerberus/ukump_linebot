@@ -152,6 +152,8 @@ def sync_customers():
 
 @transaction.atomic
 def update_patient(conn, doc):
+    print(doc)
+    print("\n\n")
     patient = Patient.objects.filter(extend__agilrcrm=doc['id']).order_by('id').first()
     if not patient:
         patient = Patient(extend={'agilrcrm': doc['id']})
@@ -165,6 +167,15 @@ def update_patient(conn, doc):
         patient.extend['sex'] = attrs['Gender']
     if 'Appellation' in attrs:
         patient.extend['title'] = attrs['Appellation']
+    if 'Last Bill' in attrs:
+        url = attrs['Last Bill']
+        if url.startswith('http://') or url.startswith('https://'):
+            patient.extend['bill_url'] = url
+    if 'Online Payment' in attrs:
+        url = attrs['Online Payment']
+        if url.startswith('http://') or url.startswith('https://'):
+            patient.extend['payment_url'] = url
+
     patient.save()
 
     patient.guardian_set.filter(master=True).delete()
