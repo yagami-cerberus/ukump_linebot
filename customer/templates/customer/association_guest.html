@@ -18,6 +18,10 @@
             <label>電子郵件</label>
             <input type="email" name="cemail" class="form-control" placeholder="電子郵件" value="{{ request.POST.cemail }}" required />
         </div>
+        <div class="form-group">
+            <label>與個案關係</label>
+            <input type="text" name="crel" class="form-control" placeholder="父子, 兄弟.. 等等" value="{{ request.POST.crel }}" required />
+        </div>
         {% if confirm %}
         <div class="form-group">
             <label>確認碼</label>

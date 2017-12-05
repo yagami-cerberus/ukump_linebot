@@ -7,6 +7,7 @@ from django.urls import reverse
 from patient.models import Profile as Patient, CareDailyReport
 
 from . import linebot_nursing
+from . import linebot_emergency
 from . import linebot_utils as utils
 
 T_REPORT = 'T_REPORT'
@@ -91,29 +92,28 @@ def select_patient(line_bot, event, value=None, patient=None, role=None):
                                      text='日期：%s' % str_now, actions=actions)))
 
     elif role == 'n':
+        actions = []
+
         report = CareDailyReport.get_report(patient.id, str_now, 18)
         if report:
+            form_name = settings.CARE_REPORTS.get(report.form_id, {}).get('label', '日報表')
+
             if report.reviewed_by_id:
-                reply_message = TemplateSendMessage('本日報表已審核完畢無法編輯')
+                actions.append(PostbackTemplateAction('編輯 %s' % form_name, {'T': T_REPORT, 'stage': STAGE_REJECT, 'V': '本日報表已審核完畢無法編輯'}))
             else:
-                form_name = settings.CARE_REPORTS.get(report.form_id, {}).get('label', '日報表')
-                reply_message = TemplateSendMessage(
-                    alt_text='%s 日報表' % str_now,
-                    template=ButtonsTemplate(
-                        title='%s 個案日報表' % patient.name, text='日期：%s' % str_now,
-                        actions=(URITemplateAction('編輯 %s' % form_name,
-                                                   settings.SITE_ROOT + reverse('patient_daily_report', args=(patient.id, str_now, 18))),)))
+                actions.append(URITemplateAction('編輯 %s' % form_name, settings.SITE_ROOT + reverse('patient_daily_report', args=(patient.id, str_now, 18))))
         else:
             form_id = CareDailyReport.get_form_id(patient.id, utils.get_employee_id(event), now)
             form_name = settings.CARE_REPORTS.get(form_id, {}).get('label', '日報表')
-            reply_message = TemplateSendMessage(
-                alt_text='%s 日報表' % str_now,
-                template=ButtonsTemplate(
-                    title='%s 個案日報表' % patient.name, text='日期：%s' % str_now,
-                    actions=(URITemplateAction('填寫 %s' % form_name,
-                                               settings.SITE_ROOT + reverse('patient_daily_report', args=(patient.id, str_now, 18))),)))
 
-        line_bot.reply_message(event.reply_token, reply_message)
+            actions.append(URITemplateAction('填寫 %s' % form_name, settings.SITE_ROOT + reverse('patient_daily_report', args=(patient.id, str_now, 18))))
+
+        actions.append(PostbackTemplateAction('緊急通報', {'T': linebot_emergency.T_EMERGENCY, 'stage': linebot_emergency.STAGE_INIGITION, 'V': {'pid': patient.id}}))
+        line_bot.reply_message(event.reply_token, TemplateSendMessage(
+            alt_text='%s 照護秘書' % str_now,
+            template=ButtonsTemplate(
+                title='%s 個案日報表' % patient.name, text='日期：%s' % str_now,
+                actions=actions)))
 
     elif role == 'c':
         actions = []

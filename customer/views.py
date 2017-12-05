@@ -3,10 +3,9 @@ from django.utils.crypto import get_random_string
 from django.core.cache import cache
 from django.shortcuts import render, redirect
 from django.contrib import messages
-import json
 
 from ukumpcore.linebot_utils import line_bot, require_lineid, get_customer_from_lineid, get_employee_from_lineid
-from patient.models import Profile as Patient
+from patient.models import Profile as Patient, Guardian
 from customer.models import Profile as Customer, LineBotIntegration as CustomerLine
 from employee.models import Profile as Employee, LineBotIntegration as EmployeeLine
 
@@ -40,6 +39,9 @@ class LineAssociation(object):
 
     @classmethod
     def render_completed(cls, request, role, source):
+        if request.method == 'POST':
+            return redirect('line_association', role=role)
+
         line_profiles = []
         for line_id in source.linebotintegration_set.values_list('lineid', flat=True):
             try:
@@ -89,10 +91,10 @@ class LineAssociation(object):
                     messages.error(request, '錯誤的驗證碼')
                     return cls.render(request, 'customer', require_profile=True, confirm=True)
         except Customer.DoesNotExist:
-            messages.error(request, '錯誤的電話號碼')
+            messages.error(request, '電話號碼不存在，如果您是案例家屬請向照護經理取得邀請碼。')
             return cls.render(request, 'customer')
         except Patient.MultipleObjectsReturned:
-            messages.error(request, '電話號碼異常，請直接聯絡照護經理')
+            messages.error(request, '電話號碼異常，請直接聯絡照護經理。')
             return cls.render(request, 'customer')
 
     @classmethod
@@ -130,63 +132,39 @@ class LineAssociation(object):
         cnum = request.POST.get('cnum', '').replace('-', '')
         cname = request.POST.get('cname', '')
         cemail = request.POST.get('cemail', '')
-        customers = Customer.objects.filter(profile__phone=cnum)
+        crel = request.POST.get('crel', '')
 
-        if customers:
+        invite_data = cache.get('_line_asso_invcode:%s' % cnum)
+
+        if not cname or not cnum or not cemail:
+            messages.error(request, '請填寫表格')
+            return cls.render(request, 'guest')
+        elif Customer.objects.filter(profile__phone=cnum).count():
             messages.error(request, '此電話號碼已經完成註冊，請使用客戶身份進行認證')
             return redirect('line_association', role='customer')
-        elif not cname or not cnum or not cemail:
-            messages.error(request, '請填寫表格')
+        elif not invite_data:
+            messages.error(request, '電話號碼不在可註冊清單中，請向照護經理確認')
             return cls.render(request, 'guest')
         else:
             if request.POST.get('submit') == 'check':
                 validate_code = get_random_string(8, allowed_chars='1234567890')
-                request.session['gmatch'] = (cnum, cname, cemail, validate_code)
+
+                request.session['gmatch'] = (cnum, cname, cemail, crel, validate_code)
                 messages.info(request, '認證碼已送出 (%s)' % validate_code)
                 return cls.render(request, 'guest', confirm=True)
+
             else:
-                cnum, cname, cemail, validate_code = request.session.get('gmatch', (None, None, None, None))
+                patient_id, employee_id = invite_data
+                cnum, cname, cemail, crel, validate_code = request.session.get('gmatch', (None, None, None, None, None))
+
                 if request.POST.get('confirm-code') == validate_code:
                     customer = Customer(name=cname, phone=cnum, profile={'email': cemail})
                     customer.save()
                     CustomerLine(lineid=line_id, customer=customer).save()
+                    Guardian(customer=customer, patient_id=patient_id, relation=crel).save()
+
+                    cache.delete('_line_asso_invcode:%s' % cnum)
                     return cls.render_completed(request, 'customer', customer)
                 else:
                     messages.error(request, '錯誤的驗證碼')
                     return cls.render(request, 'guest', require_profile=True, confirm=True)
-
-    @classmethod
-    def post_associate(cls, request, line_id):
-        customer = get_customer_from_lineid(line_id)
-        case_id = request.POST.get('patient_case_id')
-        relation = request.POST.get('patient_relation')
-
-        try:
-            patient = Patient.objects.get(extend__case_id=case_id)
-            if patient.customers.filter(id=customer.id):
-                messages.error(request, '重複加入個案')
-            else:
-                master = patient.customers.get(guardian__master=True)
-                if master.linebotintegration_set.count():
-                    cache.set('_line_asso_add:%i_%i' % (patient.id, customer.id), relation, 86400)
-
-                    message = {
-                        'M': 'confirm',
-                        'text': '%s 請求加入 %s 的照護群組\n聯絡電話：%s' % (customer.name, patient.name, customer.phone),
-                        'actions': (
-                            {'type': 'postback', 'label': '確認', 'data': json.dumps({'T': 'association', 'value': (True, patient.id, customer.id)})},
-                            {'type': 'postback', 'label': '撤銷', 'data': json.dumps({'T': 'association', 'value': (False, patient.id, customer.id)})},
-                        )
-                    }
-                    master.push_raw_message(json.dumps(message))
-
-                    messages.info(request, '已經提出加入請求，請等待回覆')
-                else:
-                    messages.error(request, '主要客戶未完成註冊，無法執行這個請求')
-
-        except Patient.DoesNotExist:
-            messages.error(request, '錯誤的合約號碼')
-        except Patient.MultipleObjectsReturned:
-            messages.error(request, '合約號碼異常，請聯絡客服人員')
-
-        return cls.render_completed(request, 'customer', customer)

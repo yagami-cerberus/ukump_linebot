@@ -66,6 +66,7 @@ class Guardian(models.Model):
     patient = models.ForeignKey(Profile)
     customer = models.ForeignKey("customer.Profile")
     master = models.BooleanField(null=False, default=False)
+    subscribe = models.BooleanField(null=False, default=True)
     relation = models.TextField(null=True)
 
 

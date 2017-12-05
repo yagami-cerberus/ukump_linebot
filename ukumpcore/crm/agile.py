@@ -284,3 +284,7 @@ def create_crm_ticket(source, title, body, emergency=False):
 
 def get_patient_crm_url(patient):
     return 'https://ukump.agilecrm.com/#company/%s' % patient.extend['agilrcrm']
+
+
+def create_crm_contect(source):
+    pass

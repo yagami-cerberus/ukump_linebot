@@ -1,16 +1,82 @@
 
+from django.conf import settings
+from django.urls import reverse
+import json
+
 from linebot.models import (  # noqa
-    TemplateSendMessage, URITemplateAction, ButtonsTemplate
+    TemplateSendMessage, URITemplateAction, ButtonsTemplate, CarouselTemplate, PostbackTemplateAction, TextSendMessage
 )
+from . import linebot_utils as utils
+
+
+T_CUSTOMER = 'customer'
+STAGE_SELECT_CASE = 's'
+STAGE_GEN_CODE = 'g'
+STAGE_TOGGLE = 't'
 
 
 def main_page(line_bot, event):
+    actions = [
+        URITemplateAction(label='最新活動', uri='http://lmgtfy.com/?q=%E7%94%B1%E5%BA%B7%E7%85%A7%E8%AD%B7+%E6%9C%80%E6%96%B0%E6%B4%BB%E5%8B%95'),
+        URITemplateAction(label='本期促銷', uri='http://lmgtfy.com/?q=%E7%94%B1%E5%BA%B7%E7%85%A7%E8%AD%B7+%E6%9C%AC%E6%9C%9F%E4%BF%83%E9%8A%B7'),
+        URITemplateAction(label='照護專欄', uri='http://lmgtfy.com/?q=%E7%94%B1%E5%BA%B7%E7%85%A7%E8%AD%B7+%E7%85%A7%E8%AD%B7%E5%B0%88%E6%AC%84')
+    ]
+
+    result = utils.get_patients(event)
+
+    if not result.manager.owner and not result.customer.owner:
+        actions.append(URITemplateAction('註冊',
+                                         settings.SITE_ROOT + reverse('line_association')))
+
+    elif result.manager.owner and result.manager.patients and False:
+        actions.append(PostbackTemplateAction(
+            label='產生邀請碼', data=json.dumps({'T': T_CUSTOMER, 'stage': STAGE_SELECT_CASE})))
+
+    elif result.customer.patients:
+        if result.customer.owner.guardian_set.filter(subscribe=True).count():
+            actions.append(PostbackTemplateAction(
+                label='取消訂閱', data=json.dumps({'T': T_CUSTOMER, 'stage': STAGE_TOGGLE, 'V': False})))
+        else:
+            actions.append(PostbackTemplateAction(
+                label='訂閱', data=json.dumps({'T': T_CUSTOMER, 'stage': STAGE_TOGGLE, 'V': True})))
+
+    try:
+        line_bot.reply_message(event.reply_token, TemplateSendMessage(
+            alt_text="請選擇功能",
+            template=ButtonsTemplate(text='請選擇功能', actions=actions[:4])))
+    except Exception as err:
+        print(actions)
+        print(err, repr(err))
+
+
+def select_patient(line_bot, event, value):
+    employee = utils.get_employee(event)
+    patients = employee.patients.filter(manager__relation='照護經理')
+    columns = utils.generate_patients_card(
+        '照護經理 %s' % employee.name, '請選擇個案',
+        {'T': T_CUSTOMER, 'stage': STAGE_GEN_CODE}, patients)
     line_bot.reply_message(event.reply_token, TemplateSendMessage(
-        alt_text='請選擇功能',
-        template=ButtonsTemplate(
-            text='請選擇功能',
-            actions=(
-                URITemplateAction(label='最新活動', uri='http://lmgtfy.com/?q=%E7%94%B1%E5%BA%B7%E7%85%A7%E8%AD%B7+%E6%9C%80%E6%96%B0%E6%B4%BB%E5%8B%95'),
-                URITemplateAction(label='本期促銷', uri='http://lmgtfy.com/?q=%E7%94%B1%E5%BA%B7%E7%85%A7%E8%AD%B7+%E6%9C%AC%E6%9C%9F%E4%BF%83%E9%8A%B7'),
-                URITemplateAction(label='照護專欄', uri='http://lmgtfy.com/?q=%E7%94%B1%E5%BA%B7%E7%85%A7%E8%AD%B7+%E7%85%A7%E8%AD%B7%E5%B0%88%E6%AC%84')
-            ))))
+        alt_text="請選擇個案",
+        template=CarouselTemplate(columns=columns)))
+
+
+def gen_code(line_bot, event, value):
+    pass
+
+
+def subscribe(line_bot, event, value):
+    customer = utils.get_customer(event)
+    customer.guardian_set.update(subscribe=value)
+
+    line_bot.reply_message(event.reply_token, TextSendMessage(
+        '完成訂閱' if value else '已取消訂閱'))
+
+
+def handle_postback(line_bot, event, resp):
+    stage, value = resp['stage'], resp.get('V')
+    if stage == STAGE_SELECT_CASE:
+        select_patient(line_bot, event, value)
+    elif stage == STAGE_GEN_CODE:
+        gen_code(line_bot, event, value)
+    elif stage == STAGE_TOGGLE:
+        subscribe(line_bot, event, value)

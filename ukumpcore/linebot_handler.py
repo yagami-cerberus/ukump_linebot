@@ -178,6 +178,8 @@ def handle_postback(event):
         linebot_simplequery.handle_postback(line_bot, event, resp)
     elif target == linebot_nursing.T_NURSING:
         linebot_nursing.handle_postback(line_bot, event, resp)
+    elif target == linebot_customer.T_CUSTOMER:
+        linebot_customer.handle_postback(line_bot, event, resp)
     elif target == 'association':
         linebot_patients.handle_association(line_bot, event, resp)
     elif target == 'attachfile':

@@ -1,9 +1,15 @@
 {% extends 'base.html' %}
 {% block page_title %}註冊{% endblock %}
-{% block content %}
-<div class="container" style="margin-top: 1em;">
+
+{% block navigation %}
+<div class="container">
     <h3>照服員註冊</h3>
     <hr />
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="margin-top: 1em;">
     <form method='post'>
         {% csrf_token %}
         <div class="form-group">

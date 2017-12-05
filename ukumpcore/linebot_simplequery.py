@@ -85,15 +85,7 @@ def select_patient(line_bot, event, value, patient=None):
                     PostbackTemplateAction('課程表',
                                            json.dumps({'T': T_SIMPLE_QUERY, 'stage': STAGE_FETCH_COURSE,
                                                        'V': {'pid': patient.id, 'date': timezone.localdate().strftime('%Y-%m-%d')}})),
-                    PostbackTemplateAction('讀取留言',
-                                           json.dumps({'T': T_SIMPLE_QUERY, 'stage': STAGE_READ_NOTE,
-                                                       'V': patient.id})),
-                    PostbackTemplateAction('寫下留言',
-                                           json.dumps({'T': T_SIMPLE_QUERY, 'stage': STAGE_WRITE_NOTE,
-                                                       'V': (patient.id, None)})),
-                    PostbackTemplateAction('清除留言',
-                                           json.dumps({'T': T_SIMPLE_QUERY, 'stage': STAGE_CLEAN_NOTE,
-                                                       'V': patient.id})),
+                    PostbackTemplateAction('留言板', json.dumps({'T': T_SIMPLE_QUERY, 'stage': STAGE_READ_NOTE, 'V': patient.id}))
                 ))))
 
     elif catalog == CATALOG_CONTECT:
@@ -138,12 +130,23 @@ class SharedNote(object):
             lt = '%s 在 %s\n%s' % (dn.name, t.strftime('%Y-%m-%d %H點%M分'), dn.message)
             tsize += len(lt) + 20
             text.append(lt)
-            if tsize > 300:
+            if tsize > 160:
                 break
 
         if text:
             text.reverse()
-            line_bot.reply_message(event.reply_token, TextSendMessage(text='\n==========\n'.join(text)))
+            message = '\n====\n'.join(text)[:160]
+
+            line_bot.reply_message(event.reply_token, TemplateSendMessage(
+                alt_text=message[:160],
+                template=ButtonsTemplate(text=message, actions=(
+                    PostbackTemplateAction('寫下留言',
+                                           json.dumps({'T': T_SIMPLE_QUERY, 'stage': STAGE_WRITE_NOTE,
+                                                       'V': (patient.id, None)})),
+                    PostbackTemplateAction('清除留言',
+                                           json.dumps({'T': T_SIMPLE_QUERY, 'stage': STAGE_CLEAN_NOTE,
+                                                       'V': patient.id})),
+                ))))
         else:
             line_bot.reply_message(event.reply_token, TextSendMessage(text='沒有留言'))
 
@@ -195,12 +198,34 @@ class SharedNote(object):
             line_bot.reply_message(event.reply_token, TextSendMessage('操作無效'))
 
     @classmethod
-    def clean(cls, line_bot, event, value):
-        pass
+    def clean(cls, line_bot, event, patient_id):
+        token = get_random_string(8)
+        cache.set('_line:temp:%s:%s' % (event.source.user_id, token), patient_id, 300)
+        line_bot.reply_message(event.reply_token, TemplateSendMessage(
+            alt_text='確定清除留言板?',
+            template=ConfirmTemplate(
+                text='確定清除留言板?',
+                actions=[
+                    PostbackTemplateAction('確定', json.dumps({'T': T_SIMPLE_QUERY, 'stage': STAGE_CLEAN_CONFIRM_NOTE, 'V': (token, True)})),
+                    PostbackTemplateAction('取消', json.dumps({'T': T_SIMPLE_QUERY, 'stage': STAGE_CLEAN_CONFIRM_NOTE, 'V': (token, False)}))
+                ])
+        ))
 
     @classmethod
     def clean_confirm(cls, line_bot, event, value):
-        pass
+        token, action = value
+
+        key = '_line:temp:%s:%s' % (event.source.user_id, token)
+        patient_id = cache.get(key)
+        if cache.get(key):
+            cache.delete(key)
+            if action:
+                DummyNote.objects.filter(patient_id=patient_id).delete()
+                line_bot.reply_message(event.reply_token, TextSendMessage('留言板已清除'))
+            else:
+                line_bot.reply_message(event.reply_token, TextSendMessage('已取消清除操作'))
+        else:
+            line_bot.reply_message(event.reply_token, TextSendMessage('操作無效'))
 
 
 def return_course(line_bot, event, value=None, patient=None, date=None):

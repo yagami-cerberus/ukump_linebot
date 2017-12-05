@@ -1,5 +1,13 @@
 {% extends 'base.html' %}
 {% block page_title %}註冊{% endblock %}
+{% block navigation %}
+
+<div class="container">
+    <h3>註冊完成</h3>
+    <hr />
+</div>
+{% endblock %}
+
 {% block content %}
 <style>
 form label, form input, form.button {
@@ -7,10 +15,8 @@ form label, form input, form.button {
 }
 </style>
 <div class="container" style="margin-top: 1em;">
-    <h3>註冊完成</h3>
-    <hr />
     <h5>基本資料</h5>
-    <div>身份：{% if role == "employee" %}照服員/工作人員{% else %}家屬{% endif %}</div>
+    <div>身份：{% if role == "employee" %}工作人員{% else %}家屬{% endif %}</div>
     <div>姓名：{{ source.name }}</div>
     <div>電子郵件：{{ source.profile.email }}</div>
     <div>聯絡電話：{% if role == "employee" %}{{ source.profile.phone }}{% else %}{{ source.phone }}{% endif %}</div>
@@ -21,15 +27,6 @@ form label, form input, form.button {
     {% for guardian in source.guardian_set.all %}
         <div style="margin: 1em 0 1em 0;">{{ guardian.patient.name }} - {{ guardian.relation }}</div>
     {% endfor %}
-    <div style="margin: 1em 0 1em 0;">
-        <form class="form-inline" method="post" action="{% url "line_association" "associate" %}">
-            {% csrf_token %}
-            <label>新增個案家屬</label>
-            <input type="text" name="patient_case_id" class="form-control form-control-sm" placeholder="合約號碼" />
-            <input type="text" name="patient_relation" class="form-control form-control-sm" placeholder="關係: 父子, 母子 等等" />
-            <button type="submit" class="btn btn-primary btn-sm">送出請求</button>
-        </form>
-    </div>
     <hr />
 
     {% endif %}
@@ -43,8 +40,8 @@ form label, form input, form.button {
                 </div>
                 <div class='col-10'>
                     <div>{{ profile.displayName }}</div>
-                    <small>狀態 {{ profile.statusMessage }}</small><br />
-                    <small>識別碼 {{ profile.userId }}</small>
+                    <small>顯示狀態 {{ profile.statusMessage }}</small><br />
+                    <small>LineID 識別碼 {{ profile.userId }}</small>
                 </div>
             </div>
         </div>
