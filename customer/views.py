@@ -5,9 +5,10 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 
 from ukumpcore.linebot_utils import line_bot, require_lineid, get_customer_from_lineid, get_employee_from_lineid
-from patient.models import Profile as Patient, Guardian
+from ukumpcore.crm.agile import create_crm_contect, update_crm_guardian
 from customer.models import Profile as Customer, LineBotIntegration as CustomerLine
 from employee.models import Profile as Employee, LineBotIntegration as EmployeeLine
+from patient.models import Profile as Patient, Guardian
 
 
 @require_lineid
@@ -133,8 +134,10 @@ class LineAssociation(object):
         cname = request.POST.get('cname', '')
         cemail = request.POST.get('cemail', '')
         crel = request.POST.get('crel', '')
+        cinv = request.POST.get('cinv', '')
 
-        invite_data = cache.get('_line_asso_invcode:%s' % cnum)
+        cache_key = '_line_asso_invcode:%s' % cinv
+        patient_id = cache.get(cache_key)
 
         if not cname or not cnum or not cemail:
             messages.error(request, '請填寫表格')
@@ -142,28 +145,32 @@ class LineAssociation(object):
         elif Customer.objects.filter(profile__phone=cnum).count():
             messages.error(request, '此電話號碼已經完成註冊，請使用客戶身份進行認證')
             return redirect('line_association', role='customer')
-        elif not invite_data:
-            messages.error(request, '電話號碼不在可註冊清單中，請向照護經理確認')
+        elif Customer.objects.filter(profile__email=cemail.lower()).count():
+            messages.error(request, '此電子郵件已經完成註冊，請使用客戶身份進行認證')
+            return redirect('line_association', role='customer')
+        elif not patient_id:
+            messages.error(request, '無效的邀請碼，請向照護經理確認')
             return cls.render(request, 'guest')
         else:
             if request.POST.get('submit') == 'check':
                 validate_code = get_random_string(8, allowed_chars='1234567890')
 
-                request.session['gmatch'] = (cnum, cname, cemail, crel, validate_code)
+                request.session['gmatch'] = (cnum, cname, cemail, crel, cinv, validate_code)
                 messages.info(request, '認證碼已送出 (%s)' % validate_code)
                 return cls.render(request, 'guest', confirm=True)
 
             else:
-                patient_id, employee_id = invite_data
-                cnum, cname, cemail, crel, validate_code = request.session.get('gmatch', (None, None, None, None, None))
+                cnum, cname, cemail, crel, cinv, validate_code = request.session.get('gmatch', (None, None, None, None, None, None))
 
                 if request.POST.get('confirm-code') == validate_code:
-                    customer = Customer(name=cname, phone=cnum, profile={'email': cemail})
+                    customer = create_crm_contect(name=cname, email=cemail, phone=cnum)
+                    cache.delete(cache_key)
+
                     customer.save()
                     CustomerLine(lineid=line_id, customer=customer).save()
                     Guardian(customer=customer, patient_id=patient_id, relation=crel).save()
+                    update_crm_guardian(Patient.objects.get(pk=patient_id))
 
-                    cache.delete('_line_asso_invcode:%s' % cnum)
                     return cls.render_completed(request, 'customer', customer)
                 else:
                     messages.error(request, '錯誤的驗證碼')

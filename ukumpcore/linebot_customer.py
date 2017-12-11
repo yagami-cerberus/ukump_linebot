@@ -1,4 +1,6 @@
 
+from django.utils.crypto import get_random_string
+from django.core.cache import cache
 from django.conf import settings
 from django.urls import reverse
 import json
@@ -6,11 +8,13 @@ import json
 from linebot.models import (  # noqa
     TemplateSendMessage, URITemplateAction, ButtonsTemplate, CarouselTemplate, PostbackTemplateAction, TextSendMessage
 )
+from patient.models import Profile as Patient
 from . import linebot_utils as utils
 
 
 T_CUSTOMER = 'customer'
 STAGE_SELECT_CASE = 's'
+STAGE_EXCHANGE = 'e'
 STAGE_GEN_CODE = 'g'
 STAGE_TOGGLE = 't'
 
@@ -28,7 +32,7 @@ def main_page(line_bot, event):
         actions.append(URITemplateAction('註冊',
                                          settings.SITE_ROOT + reverse('line_association')))
 
-    elif result.manager.owner and result.manager.patients and False:
+    elif result.manager.owner and result.manager.patients:
         actions.append(PostbackTemplateAction(
             label='產生邀請碼', data=json.dumps({'T': T_CUSTOMER, 'stage': STAGE_SELECT_CASE})))
 
@@ -60,8 +64,27 @@ def select_patient(line_bot, event, value):
         template=CarouselTemplate(columns=columns)))
 
 
-def gen_code(line_bot, event, value):
-    pass
+def gen_code(line_bot, event, patient_id):
+    patient = Patient.objects.get(id=patient_id)
+    validate_code = get_random_string(6, allowed_chars='1234567890')
+    cache.set('_line_asso_invcode:%s' % validate_code, patient_id, 600)
+
+    line_bot.reply_message(event.reply_token, TemplateSendMessage(
+        alt_text="已產生邀請碼",
+        template=ButtonsTemplate(text='個案 %s 邀請碼：\n%s\n\n邀請碼10分鐘內有效' % (patient.name, validate_code),
+                                 actions=(PostbackTemplateAction('轉送給客戶', json.dumps({'T': T_CUSTOMER, 'stage': STAGE_EXCHANGE, 'V': (patient_id, validate_code)})),))))
+
+
+def exchange_code(line_bot, event, value):
+    patient_id, validate_code = value
+    patient = Patient.objects.get(id=patient_id)
+
+    customers = patient.customers.filter(guardian__master=True)
+    if customers:
+        for customer in customers:
+            customer.push_message('個案 %s 邀請碼：\n%s' % (patient.name, validate_code))
+    else:
+        line_bot.reply_message(event.reply_token, TextSendMessage('沒有客戶可以傳送。'))
 
 
 def subscribe(line_bot, event, value):
@@ -78,5 +101,7 @@ def handle_postback(line_bot, event, resp):
         select_patient(line_bot, event, value)
     elif stage == STAGE_GEN_CODE:
         gen_code(line_bot, event, value)
+    elif stage == STAGE_EXCHANGE:
+        exchange_code(line_bot, event, value)
     elif stage == STAGE_TOGGLE:
         subscribe(line_bot, event, value)

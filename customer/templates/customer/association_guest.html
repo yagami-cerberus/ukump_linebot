@@ -22,6 +22,10 @@
             <label>與個案關係</label>
             <input type="text" name="crel" class="form-control" placeholder="父子, 兄弟.. 等等" value="{{ request.POST.crel }}" required />
         </div>
+        <div class="form-group">
+            <label>邀請碼</label>
+            <input type="text" name="cinv" class="form-control" placeholder="由照護經理提供邀請碼" value="{{ request.POST.cinv }}" required />
+        </div>
         {% if confirm %}
         <div class="form-group">
             <label>確認碼</label>

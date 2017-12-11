@@ -134,7 +134,7 @@ def sync_customers():
         c = 0
         if customers_doc:
             for doc in customers_doc:
-                customer = Customer.objects.filter(profile__agilrcrm=doc['id']).order_by('id').first()
+                customer = Customer.objects.filter(profile__agilecrm=doc['id']).order_by('id').first()
                 if customer:
                     c += 1
                     update_customer(customer, doc)
@@ -153,10 +153,9 @@ def sync_customers():
 @transaction.atomic
 def update_patient(conn, doc):
     print(doc)
-    print("\n\n")
-    patient = Patient.objects.filter(extend__agilrcrm=doc['id']).order_by('id').first()
+    patient = Patient.objects.filter(extend__agilecrm=doc['id']).order_by('id').first()
     if not patient:
-        patient = Patient(extend={'agilrcrm': doc['id']})
+        patient = Patient(extend={'agilecrm': doc['id']})
     attrs = {p['name']: p['value'] for p in doc['properties']}
     patient.name = attrs['Case Name']
 
@@ -178,19 +177,36 @@ def update_patient(conn, doc):
 
     patient.save()
 
-    patient.guardian_set.filter(master=True).delete()
+    crm_guardians = set()
+    crm_master_guardians = set()
+    if 'Family Members' in attrs:
+        for crm_customer_id in json.loads(attrs['Family Members']):
+            crm_guardians.add(int(crm_customer_id))
     if 'Contact Window' in attrs:
-        for crm_customer_id in map(int, json.loads(attrs['Contact Window'])):
-            c = Customer.objects.filter(profile__agilrcrm=crm_customer_id).order_by('id').first()
-            if not c:
-                c = create_customer(conn, crm_customer_id)
-            g = patient.guardian_set.filter(customer=c).first()
-            if g:
-                g.relation = patient.extend.get('title', '未填寫')
-                g.master = True
-                g.save()
-            else:
-                patient.guardian_set.create(customer=c, relation=patient.extend.get('title', '未填寫'), master=True)
+        for crm_customer_id in json.loads(attrs['Contact Window']):
+            crm_guardians.add(int(crm_customer_id))
+            crm_master_guardians.add(int(crm_customer_id))
+
+    for g in patient.guardian_set.select_related('customer').all():
+        crm_customer_id = g.customer.profile.get('agilecrm')
+        if crm_customer_id in crm_guardians:
+            crm_guardians.remove(crm_customer_id)
+            g.master = crm_customer_id in crm_master_guardians
+            g.save()
+        else:
+            g.delete()
+
+    for crm_customer_id in crm_guardians:
+        c = Customer.objects.filter(profile__agilecrm=crm_customer_id).order_by('id').first()
+        if not c:
+            c = create_customer(conn, crm_customer_id)
+        g = patient.guardian_set.filter(customer=c).first()
+        if g:
+            g.relation = patient.extend.get('title', '未填寫')
+            g.master = crm_customer_id in crm_master_guardians
+            g.save()
+        else:
+            patient.guardian_set.create(customer=c, relation=patient.extend.get('title', '未填寫'), master=crm_customer_id in crm_master_guardians)
 
     employee = update_employee(doc['owner'])
     relations = patient.manager_set.filter(relation='照護經理')
@@ -224,7 +240,7 @@ def create_customer(conn, crm_customer_id):
     bbody = resp.read()
     doc = json.loads(bbody.decode())
 
-    customer = Customer(profile={'agilrcrm': crm_customer_id})
+    customer = Customer(profile={'agilecrm': crm_customer_id})
     update_customer(customer, doc)
     return customer
 
@@ -233,7 +249,7 @@ def create_customer(conn, crm_customer_id):
 def update_customer(customer, crm_profile):
     attrs = {name: next(vals)['value'] for name, vals in groupby(crm_profile['properties'], lambda p: p['name'])}
 
-    customer.name = '%s%s' % (attrs.get('last_name', ''), attrs.get('first_name', ''))
+    customer.name = '%s%s' % (attrs.get('first_name', ''), attrs.get('last_name', ''))
     profile = customer.profile
     if 'phone' in attrs:
         customer.phone = profile['phone'] = attrs['phone'].replace('-', '')
@@ -245,11 +261,11 @@ def update_customer(customer, crm_profile):
 
 
 def customer_support_crm(customer):
-    return customer.profile and "agilrcrm" in customer.profile
+    return customer.profile and "agilecrm" in customer.profile
 
 
 def customer_support_crm_filter(queryset):
-    return queryset.filter(profile__agilrcrm__isnull=False)
+    return queryset.filter(profile__agilecrm__isnull=False)
 
 
 def create_crm_ticket(source, title, body, emergency=False):
@@ -283,8 +299,74 @@ def create_crm_ticket(source, title, body, emergency=False):
 
 
 def get_patient_crm_url(patient):
-    return 'https://ukump.agilecrm.com/#company/%s' % patient.extend['agilrcrm']
+    return 'https://ukump.agilecrm.com/#company/%s' % patient.extend['agilecrm']
 
 
-def create_crm_contect(source):
-    pass
+def update_crm_guardian(patient):
+    conn = HTTPSConnection(DOMAIN)
+    meta = patient.guardian_set.filter(customer__profile__agilecrm__isnull=False).values_list('customer__profile', flat=True)
+    values = list(str(m['agilecrm']) for m in meta)
+
+    body = json.dumps({
+        'id': patient.extend['agilecrm'],
+        'properties': [
+            {
+                'name': 'Family Members',
+                'type': 'CUSTOM',
+                'value': json.dumps(values)
+            }
+        ]
+    })
+
+    conn.request('PUT', '/dev/api/contacts/edit-properties',
+                 body=body, headers=TICKET_REQUEST_HEADER)
+    resp = conn.getresponse()
+    try:
+        assert resp.status == 200
+        print(resp.read())
+    except Exception:
+        print(resp.status, resp.read())
+        raise
+
+
+def create_crm_contect(name, email, phone):
+    conn = HTTPSConnection(DOMAIN)
+    body = json.dumps({
+        'tags': ['邀請碼註冊'],
+        'properties': [
+            {
+                "type": "SYSTEM",
+                "name": "first_name",
+                "value": name
+            },
+            {
+                "type": "SYSTEM",
+                "name": "email",
+                "subtype": "work",
+                "value": email
+            },
+            {
+                "name": "phone",
+                "value": phone,
+                "subtype": "work"
+            }
+        ]
+    })
+    conn.request('POST', '/dev/api/contacts',
+                 body=body, headers=TICKET_REQUEST_HEADER)
+    resp = conn.getresponse()
+
+    try:
+        assert resp.status == 200
+
+        bbody = resp.read()
+        doc = json.loads(bbody.decode())
+
+        customer = Customer(profile={'agilecrm': int(doc['id'])})
+        update_customer(customer, doc)
+        customer.save()
+
+        return customer
+    except Exception:
+        print(resp.status, resp.read())
+        raise
