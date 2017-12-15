@@ -33,7 +33,7 @@ class LineBotIntegration(models.Model):
         return "<Employee '%s' LineId '%s'>" % (self.employee.name, self.lineid)
 
     lineid = models.TextField(primary_key=True)
-    employee = models.ForeignKey(Profile)
+    employee = models.ForeignKey(Profile, on_delete=models.CASCADE)
 
 
 class LineMessageManager(models.Manager):
@@ -51,7 +51,7 @@ class LineMessageQueue(models.Model):
 
     objects = LineMessageManager()
 
-    employee = models.ForeignKey(Profile)
+    employee = models.ForeignKey(Profile, on_delete=models.CASCADE)
     message = models.TextField()
     """
     {

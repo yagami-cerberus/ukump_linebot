@@ -52,7 +52,7 @@ class DummyNote(models.Model):
     class Meta:
         db_table = "patient_note"
 
-    patient = models.ForeignKey(Profile)
+    patient = models.ForeignKey(Profile, on_delete=models.CASCADE)
     name = models.TextField()
     message = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -63,8 +63,8 @@ class Guardian(models.Model):
         db_table = "patient_guardian"
         unique_together = ('patient', 'customer')
 
-    patient = models.ForeignKey(Profile)
-    customer = models.ForeignKey("customer.Profile")
+    patient = models.ForeignKey(Profile, on_delete=models.CASCADE)
+    customer = models.ForeignKey("customer.Profile", on_delete=models.CASCADE)
     master = models.BooleanField(null=False, default=False)
     subscribe = models.BooleanField(null=False, default=True)
     relation = models.TextField(null=True)
@@ -75,8 +75,8 @@ class Manager(models.Model):
         db_table = "patient_manager"
         unique_together = ('patient', 'employee')
 
-    patient = models.ForeignKey(Profile)
-    employee = models.ForeignKey("employee.Profile")
+    patient = models.ForeignKey(Profile, on_delete=models.CASCADE)
+    employee = models.ForeignKey("employee.Profile", on_delete=models.CASCADE)
     relation = models.TextField()
 
 
@@ -84,8 +84,8 @@ class CourseSchedule(models.Model):
     class Meta:
         db_table = "patient_course_table"
 
-    patient = models.ForeignKey(Profile, related_name="course_schedule")
-    table = models.ForeignKey("care.Course")
+    patient = models.ForeignKey(Profile, related_name="course_schedule", on_delete=models.CASCADE)
+    table = models.ForeignKey("care.Course", on_delete=models.CASCADE)
     weekly_mask = models.IntegerField()
 
     def __str__(self):
@@ -117,8 +117,8 @@ class NursingSchedule(models.Model):
 
     objects = ScheduleManager()
 
-    patient = models.ForeignKey(Profile, related_name='nursing_schedule')
-    employee = models.ForeignKey("employee.Profile", related_name='nursing_schedule')
+    patient = models.ForeignKey(Profile, related_name='nursing_schedule', on_delete=models.CASCADE)
+    employee = models.ForeignKey("employee.Profile", related_name='nursing_schedule', on_delete=models.CASCADE)
     schedule = DateTimeRangeField()
     flow_control = models.DateTimeField(null=True)
 
@@ -154,14 +154,14 @@ class CareDailyReport(models.Model):
         unique_together = ('patient', 'report_date', 'report_period')
 
     objects = ReportManager()
-    patient = models.ForeignKey(Profile)
+    patient = models.ForeignKey(Profile, on_delete=models.CASCADE)
     form_id = models.TextField(null=True, blank=True)
     report_date = models.DateField()
     report_period = models.IntegerField()
     report = JSONField()
 
-    filled_by = models.ForeignKey("employee.Profile", related_name="+")
-    reviewed_by = models.ForeignKey("employee.Profile", related_name="+", null=True)
+    filled_by = models.ForeignKey("employee.Profile", related_name="+", on_delete=models.CASCADE)
+    reviewed_by = models.ForeignKey("employee.Profile", related_name="+", null=True, on_delete=models.CASCADE)
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -202,12 +202,12 @@ class CareHistory(models.Model):
     class Meta:
         db_table = "patient_care_history"
 
-    patient = models.ForeignKey(Profile)
-    question = models.ForeignKey("care.Question")
+    patient = models.ForeignKey(Profile, on_delete=models.CASCADE)
+    question = models.ForeignKey("care.Question", on_delete=models.CASCADE)
     answer_int = models.IntegerField(null=True)
     answer_str = models.TextField(null=True)
     routine = models.BooleanField()
-    employee = models.ForeignKey("employee.Profile", related_name='+', null=True)
+    employee = models.ForeignKey("employee.Profile", related_name='+', null=True, on_delete=models.CASCADE)
     scheduled_at = models.DateField()
     answered_at = models.DateTimeField(auto_now_add=True)
 

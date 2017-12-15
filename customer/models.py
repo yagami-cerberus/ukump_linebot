@@ -34,7 +34,7 @@ class LineBotIntegration(models.Model):
         db_table = "customer_linebot_integration"
 
     lineid = models.TextField(primary_key=True)
-    customer = models.ForeignKey(Profile)
+    customer = models.ForeignKey(Profile, on_delete=models.CASCADE)
 
 
 class LineMessageQueue(models.Model):
@@ -43,7 +43,7 @@ class LineMessageQueue(models.Model):
 
     objects = LineMessageManager()
 
-    customer = models.ForeignKey(Profile)
+    customer = models.ForeignKey(Profile, on_delete=models.CASCADE)
     scheduled_at = models.DateTimeField()
     message = models.TextField()
 

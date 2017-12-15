@@ -41,7 +41,7 @@ class CourseDetail(models.Model):
         db_table = "care_course_detail"
         ordering = ['scheduled_at']
 
-    table = models.ForeignKey(Course)
+    table = models.ForeignKey(Course, on_delete=models.CASCADE)
     name = models.TextField()
     scheduled_at = models.TimeField()
 
@@ -54,8 +54,8 @@ class CourseQuestion(models.Model):
         db_table = "care_course_question"
         ordering = ['scheduled_at']
 
-    question = models.ForeignKey(Question, limit_choices_to={"archived": False})
-    table = models.ForeignKey(Course)
+    question = models.ForeignKey(Question, limit_choices_to={"archived": False}, on_delete=models.CASCADE)
+    table = models.ForeignKey(Course, on_delete=models.CASCADE)
     scheduled_at = models.TimeField()
 
     def __str__(self):
