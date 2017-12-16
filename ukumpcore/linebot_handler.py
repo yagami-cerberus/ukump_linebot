@@ -219,7 +219,9 @@ def handle_message(event):
             elif target == linebot_simplequery.T_SIMPLE_QUERY:
                 linebot_simplequery.handle_message(line_bot, event, event.message.text, magic)
         else:
-            if is_system_admin(event):
+            if event.message.text == 'whoami':
+                line_bot.reply_message(event.reply_token, TextSendMessage(text=event.source.user_id))
+            elif is_system_admin(event):
                 try:
                     if event.message.text == '1':
                         flush_messages_queue()
