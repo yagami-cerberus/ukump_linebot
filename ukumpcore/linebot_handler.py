@@ -13,7 +13,7 @@ import json
 
 from linebot import WebhookHandler
 from linebot.models import (
-    MessageEvent, PostbackEvent, FileMessage, LocationMessage, TextMessage, TextSendMessage, PostbackTemplateAction, ConfirmTemplate,
+    MessageEvent, PostbackEvent, LocationMessage, TextMessage, TextSendMessage, PostbackTemplateAction, ConfirmTemplate,
     TemplateSendMessage, ButtonsTemplate, CarouselTemplate, CarouselColumn, URITemplateAction, MessageTemplateAction
 )
 
@@ -182,12 +182,6 @@ def handle_postback(event):
         linebot_customer.handle_postback(line_bot, event, resp)
     elif target == 'association':
         linebot_patients.handle_association(line_bot, event, resp)
-    elif target == 'attachfile':
-        message_content = line_bot.get_message_content(resp['file_id'])
-        if resp['catalog'] == 'schedule':
-            pass
-        elif resp['catalog'] == 'employee':
-            pass
 
 
 @handler.add(MessageEvent, message=TextMessage)
@@ -232,6 +226,8 @@ def handle_message(event):
                     elif event.message.text == '3':
                         linebot_patients.prepare_dairly_cards()
                         line_bot.reply_message(event.reply_token, TextSendMessage(text='所有客戶卡片已經送出'))
+                    elif event.message.text == '8':
+                        sync_employees_from_csv(event)
                     elif event.message.text == '9':
                         line_bot.push_message(event.source.user_id, TextSendMessage('準備與 CRM 同步資料，這會使用一段時間...'))
                         from ukumpcore.crm.agile import sync_patients, sync_customers
@@ -258,21 +254,21 @@ def handle_location(event):
     pass
 
 
-@handler.add(MessageEvent, message=FileMessage)
-@line_error_handler
-def handle_attachment_file(event):
-    if is_system_admin(event):
-        file_id = event.message.id
+# @handler.add(MessageEvent, message=FileMessage)
+# @line_error_handler
+# def handle_attachment_file(event):
+#     if is_system_admin(event):
+#         file_id = event.message.id
 
-        line_bot.reply_message(event.reply_token, TemplateSendMessage(
-            alt_text='請選擇檔案處理方式',
-            template=ButtonsTemplate(
-                title='請選擇檔案處理方式',
-                text='檔案: %s' % event.message.file_name,
-                actions=(
-                    PostbackTemplateAction('班表', json.dumps({'T': 'attachfile', 'file_id': file_id, 'catalog': 'schedule'})),
-                    PostbackTemplateAction('員工清單', json.dumps({'T': 'attachfile', 'file_id': file_id, 'catalog': 'employee'})),
-                ))))
+#         line_bot.reply_message(event.reply_token, TemplateSendMessage(
+#             alt_text='請選擇檔案處理方式',
+#             template=ButtonsTemplate(
+#                 title='請選擇檔案處理方式',
+#                 text='檔案: %s' % event.message.file_name,
+#                 actions=(
+#                     PostbackTemplateAction('班表', json.dumps({'T': 'attachfile', 'file_id': file_id, 'catalog': 'schedule'})),
+#                     PostbackTemplateAction('員工清單', json.dumps({'T': 'attachfile', 'file_id': file_id, 'catalog': 'employee'})),
+#                 ))))
 
 
 @receiver([signals.post_save], sender=CareDailyReport)
@@ -305,3 +301,23 @@ def flush_message_while_saving(sender, instance, created, **kwargs):
 
     if instance.scheduled_at < timezone.now():
         flush_message(instance)
+
+
+def sync_employees_from_csv(event):
+    from ukumpcore.crm.agile import get_employees_from_crm_document, update_employee_from_from_csv
+
+    line_bot.push_message(event.source.user_id, TextSendMessage('準備從 CRM 的 CSV 取得資料，這會使用一段時間...'))
+    created, updated_from_hr_id, updated_from_email = 0, 0, 0
+
+    for doc in get_employees_from_crm_document():
+        is_created, is_updated_from_hr_id, is_updated_from_email = update_employee_from_from_csv(doc)
+        if is_created:
+            created += 1
+        elif is_updated_from_hr_id:
+            updated_from_hr_id += 1
+        elif is_updated_from_email:
+            updated_from_email += 1
+
+    line_bot.push_message(
+        event.source.user_id,
+        TextSendMessage('建立: %i\nUpdated from 員工ID: %i\nUpdated from email: %i' % (created, updated_from_hr_id, updated_from_email)))

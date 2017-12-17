@@ -1,12 +1,15 @@
 
 from http.client import HTTPSConnection
+from urllib.request import urlopen
 from urllib.parse import urlencode
 from django.conf import settings
 from django.db import transaction
 from itertools import groupby
 from base64 import b64encode
+from io import StringIO
 import time
 import json
+import csv
 
 from customer.models import Profile as Customer
 from employee.models import Profile as Employee
@@ -370,3 +373,70 @@ def create_crm_contect(name, email, phone):
     except Exception:
         print(resp.status, resp.read())
         raise
+
+
+def get_employees_from_crm_document():
+    conn = HTTPSConnection(DOMAIN)
+
+    conn.request('GET', '/dev/api/documents/contact/5692767623708672/docs',
+                 headers=REQUEST_HEADER)
+    resp = conn.getresponse()
+
+    assert resp.status == 200
+    bbody = resp.read()
+    doc_lists = json.loads(bbody.decode())
+    for doc in doc_lists:
+        if doc['name'] == 'UKump-Empl-LINE-Sync' and doc['extension'].endswith('.csv'):
+            resp = urlopen(doc['url'])
+            assert resp.status == 200
+            f = StringIO(resp.read().decode())
+            reader = csv.reader(f)
+            if '公司名稱：由康照護股份有限公司' not in next(reader)[0]:
+                raise RuntimeError('未預期的資料格式')
+            if '資料類型：員工資料匯出' not in next(reader)[0]:
+                raise RuntimeError('未預期的資料格式')
+            for i in range(5):
+                next(reader)
+            if next(reader) != ['', '員工編號', '姓名', '生日', '英文姓名', '性別', '國籍', '婚姻狀況', '身份族群', '身心障礙類別', '兵役狀況', '公司電話', '行動電話', '公司email', '通訊地址', '聯絡人姓名/關係', '聯絡人電話', '個人email', '戶籍地址', '到職日期', '試滿日期', '部門', '員工類型', '職務類別', '職位', '責任區分', '直/間接人員', '編制狀態', '在職狀態', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']:
+                raise RuntimeError("員工匯入欄位格式不符合預期")
+
+            for line in reader:
+                doc = {
+                    'hr_id': line[1],
+                    'name': line[2],
+                    'phone': line[12],
+                    'email': line[13],
+                    'title': line[23]
+                }
+
+                yield doc
+            break
+    else:
+        raise RuntimeError('找不到名稱為 UKump-Empl-LINE-Sync 的 .csv 文件')
+        yield
+
+
+def update_employee_from_from_csv(doc):
+    employee = Employee.objects.filter(profile__hr_id=doc['hr_id']).order_by('id').first()
+    if employee:
+        employee.name = doc['name']
+        employee.profile['email'] = doc['email']
+        employee.profile['phone'] = doc.get('phone', '').replace('-', '')
+        employee.profile['title'] = doc['title']
+        employee.save()
+        return False, True, False
+
+    employee = Employee.objects.filter(profile__email=doc['email']).order_by('id').first()
+    if employee:
+        employee.name = doc['name']
+        employee.profile['hr_id'] = doc['hr_id']
+        employee.profile['phone'] = doc.get('phone', '').replace('-', '')
+        employee.profile['title'] = doc['title']
+        employee.save()
+        return False, False, True
+
+    employee = Employee(name=doc['name'], profile={'hr_id': doc['hr_id'],
+                                                   'phone': doc['phone'],
+                                                   'title': doc['title']}, members=[])
+    employee.save()
+    return True, False, False
