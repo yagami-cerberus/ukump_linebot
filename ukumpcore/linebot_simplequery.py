@@ -233,7 +233,7 @@ def return_course(line_bot, event, value=None, patient=None, date=None):
         patient = Patient.objects.get(pk=value['pid'])
     if not date:
         date = parse_date(value['date'])
-    ext = ('("weekly_mask" & %i > 0)' % (1 << date.isoweekday()), )
+    ext = ('("weekly_mask" & %i > 0)' % (1 << (date.isoweekday() % 7)), )
     courses = patient.course_schedule.extra(where=ext)
     details = CourseDetail.objects.filter(table_id__in=courses.values_list('table_id', flat=True))
 
