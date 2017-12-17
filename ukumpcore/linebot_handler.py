@@ -240,6 +240,7 @@ def handle_message(event):
                                  '1 - 立刻清空訊息柱列\n'
                                  '2 - 立刻檢查照護排程清單\n'
                                  '3 - 立刻送出客戶卡片\n'
+                                 '8 - 從 csv 同步員工資料\n'
                                  '9 - 從 CRM 更新個案資料'))
                 except Exception as err:
                     line_bot.reply_message(event.reply_token, TextSendMessage(text='處理命令時發生錯誤：%s' % err))

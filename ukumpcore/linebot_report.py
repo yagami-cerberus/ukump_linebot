@@ -3,6 +3,7 @@ from linebot.models import TemplateSendMessage, TextSendMessage, ButtonsTemplate
 from django.utils import timezone
 from django.conf import settings
 from django.urls import reverse
+import json
 
 from patient.models import Profile as Patient, CareDailyReport
 
@@ -92,6 +93,7 @@ def select_patient(line_bot, event, value=None, patient=None, role=None):
                                      text='日期：%s' % str_now, actions=actions)))
 
     elif role == 'n':
+        text = '日期：%s' % str_now
         actions = []
 
         report = CareDailyReport.get_report(patient.id, str_now, 18)
@@ -99,20 +101,23 @@ def select_patient(line_bot, event, value=None, patient=None, role=None):
             form_name = settings.CARE_REPORTS.get(report.form_id, {}).get('label', '日報表')
 
             if report.reviewed_by_id:
-                actions.append(PostbackTemplateAction('編輯 %s' % form_name, {'T': T_REPORT, 'stage': STAGE_REJECT, 'V': '本日報表已審核完畢無法編輯'}))
+                actions.append(PostbackTemplateAction('編輯 %s' % form_name, json.dumps({'T': T_REPORT, 'stage': STAGE_REJECT, 'V': '本日報表已審核完畢無法編輯'})))
             else:
                 actions.append(URITemplateAction('編輯 %s' % form_name, settings.SITE_ROOT + reverse('patient_daily_report', args=(patient.id, str_now, 18))))
         else:
-            form_id = CareDailyReport.get_form_id(patient.id, utils.get_employee_id(event), now)
-            form_name = settings.CARE_REPORTS.get(form_id, {}).get('label', '日報表')
+            try:
+                form_id = CareDailyReport.get_form_id(patient.id, utils.get_employee_id(event), now)
+                form_name = settings.CARE_REPORTS.get(form_id, {}).get('label', '日報表')
 
-            actions.append(URITemplateAction('填寫 %s' % form_name, settings.SITE_ROOT + reverse('patient_daily_report', args=(patient.id, str_now, 18))))
+                actions.append(URITemplateAction('填寫 %s' % form_name, settings.SITE_ROOT + reverse('patient_daily_report', args=(patient.id, str_now, 18))))
+            except RuntimeError as err:
+                text += '\n%s' % err.args[0]
 
-        actions.append(PostbackTemplateAction('緊急通報', {'T': linebot_emergency.T_EMERGENCY, 'stage': linebot_emergency.STAGE_INIGITION, 'V': {'pid': patient.id}}))
+        actions.append(PostbackTemplateAction('緊急通報', json.dumps({'T': linebot_emergency.T_EMERGENCY, 'stage': linebot_emergency.STAGE_INIGITION, 'V': {'pid': patient.id}})))
         line_bot.reply_message(event.reply_token, TemplateSendMessage(
             alt_text='%s 照護秘書' % str_now,
             template=ButtonsTemplate(
-                title='%s 個案日報表' % patient.name, text='日期：%s' % str_now,
+                title='%s 個案日報表' % patient.name, text=text,
                 actions=actions)))
 
     elif role == 'c':

@@ -136,19 +136,19 @@ class SharedNote(object):
         if text:
             text.reverse()
             message = '\n====\n'.join(text)[:160]
-
-            line_bot.reply_message(event.reply_token, TemplateSendMessage(
-                alt_text=message[:160],
-                template=ButtonsTemplate(text=message, actions=(
-                    PostbackTemplateAction('寫下留言',
-                                           json.dumps({'T': T_SIMPLE_QUERY, 'stage': STAGE_WRITE_NOTE,
-                                                       'V': (patient.id, None)})),
-                    PostbackTemplateAction('清除留言',
-                                           json.dumps({'T': T_SIMPLE_QUERY, 'stage': STAGE_CLEAN_NOTE,
-                                                       'V': patient.id})),
-                ))))
         else:
-            line_bot.reply_message(event.reply_token, TextSendMessage(text='沒有留言'))
+            message = '沒有留言'
+
+        line_bot.reply_message(event.reply_token, TemplateSendMessage(
+            alt_text=message[:160],
+            template=ButtonsTemplate(text=message, actions=(
+                PostbackTemplateAction('寫下留言',
+                                       json.dumps({'T': T_SIMPLE_QUERY, 'stage': STAGE_WRITE_NOTE,
+                                                   'V': (patient.id, None)})),
+                PostbackTemplateAction('清除留言',
+                                       json.dumps({'T': T_SIMPLE_QUERY, 'stage': STAGE_CLEAN_NOTE,
+                                                   'V': patient.id})),
+            ))))
 
     @classmethod
     def write(cls, line_bot, event, value):
