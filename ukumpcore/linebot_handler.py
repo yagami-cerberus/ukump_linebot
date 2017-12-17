@@ -37,7 +37,7 @@ def line_error_handler(fn):
                     TextSendMessage('請先加入會員\n\n%s' % settings.SITE_ROOT + reverse('line_association')))
         except LineMessageError as err:
             print("Error", event)
-            if event.source.type == "user":
+            if event.source.type == "user" and event.reply_token != "00000000000000000000000000000000":
                 line_bot.reply_message(
                     event.reply_token,
                     TextSendMessage(err.args[0]))
