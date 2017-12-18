@@ -224,8 +224,8 @@ def handle_message(event):
                         count = linebot_nursing.schedule_fixed_schedule_message()
                         line_bot.reply_message(event.reply_token, TextSendMessage(text='照護排程已處理：%s筆' % count))
                     elif event.message.text == '3':
-                        linebot_patients.prepare_dairly_cards()
-                        line_bot.reply_message(event.reply_token, TextSendMessage(text='所有客戶卡片已經送出'))
+                        a, b, c = linebot_patients.prepare_dairly_cards()
+                        line_bot.reply_message(event.reply_token, TextSendMessage(text='%i 個個案已送出卡片\n%i 個個案等待審核\n%i 個個案已略過 (本日已送出)' % (b, c, a)))
                     elif event.message.text == '8':
                         sync_employees_from_csv(event)
                     elif event.message.text == '9':

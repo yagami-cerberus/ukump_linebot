@@ -21,6 +21,9 @@ class Profile(models.Model):
         return self.nursing_schedule.extra(where=(
             "(LOWER(schedule) AT TIME ZONE 'Asia/Taipei')::Date = (current_timestamp AT TIME ZONE 'Asia/Taipei')::Date",))
 
+    def push_raw_message(self, raw_data, scheduled_at=Now()):
+        LineMessageQueue(employee=self, scheduled_at=scheduled_at, message=raw_data).save()
+
     def push_message(self, message):
         LineMessageQueue(employee=self, scheduled_at=Now(), message=json.dumps({'M': 't', 'text': message})).save()
 

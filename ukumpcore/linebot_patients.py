@@ -11,7 +11,7 @@ import pytz
 
 from ukumpcore.crm.agile import create_crm_ticket, get_patient_crm_url
 from customer.models import Profile as Customer
-from patient.models import Profile as Patient
+from patient.models import Profile as Patient, CareDailyReport
 from . import linebot_utils as utils
 
 CATALOGS = ("生理狀態", "精神狀態", "營養排泄", "活動狀態")
@@ -55,9 +55,20 @@ def generate_line_cards(patient, date):
 
 
 def prepare_dairly_cards():
+    ignore_count, sent_count, padding_count = 0, 0, 0
+
     date = timezone.now().astimezone(fix_tz).date()
     text_date = date.strftime('%Y-%m-%d')
     for patient in Patient.objects.filter(caredailyreport__report_date=date).exclude(caredailyreport__reviewed_by=None):
+        if not patient.extend:
+            patient.extend = {}
+
+        if patient.extend.get('last_cart') == text_date:
+            ignore_count += 1
+            continue
+        else:
+            patient.extend['last_cart'] = text_date
+
         token = get_random_string(16)
         cache.set('_patient_card:%s' % token, json.dumps({'p': patient.id, 'd': date.strftime("%Y-%m-%d")}), 259200)
         imgurl_base = "https://76o5au1sya.execute-api.ap-northeast-1.amazonaws.com/staged/integrations/%%s/?token=%s" % token
@@ -69,12 +80,33 @@ def prepare_dairly_cards():
                 {'imgurl': imgurl_base % i,
                  'title': label,
                  'text': text_date,
-                 'actions': [{'type': 'url', 'label': '查閱詳情', 'url': settings.SITE_ROOT + reverse("patient_summary", args=(patient.pk, i))},
+                 'actions': [{'type': 'url', 'label': '查閱詳情', 'url': settings.SITE_ROOT + reverse("patient_summary", args=(patient.pk, )) + '#catalog-%i' % i},
                              {'type': 'postback', 'label': '聯繫照護團隊', 'data': json.dumps({'T': T_PATIENT, 'stage': STAGE_CONTECT, 'V': (patient.id, i)})}]}
                 for i, label in enumerate(CATALOGS)]
         })
+
+        sent_count += 1
+        patient.save()
+
         for customer in patient.customers.all():
             customer.push_raw_message(message)
+
+    for report in CareDailyReport.objects.filter(report_date=date, reviewed_by=None):
+        padding_count += 1
+
+        review_url = settings.SITE_ROOT + reverse('patient_daily_report', args=(report.patient_id, report.report_date, report.report_period))
+        title = '%s 的日報正在等待審核 (重複通知)' % report.patient.name
+        text = '日期 %s\n照服員 %s\n' % (report.report_date, report.filled_by.name)
+        message = json.dumps({
+            'M': 'buttons',
+            'title': title,
+            'alt': title,
+            'text': text,
+            'actions': ({'type': 'url', 'label': '審核', 'url': review_url}, )
+        })
+        for employee in report.patient.managers.filter(manager__relation="照護經理"):
+            employee.push_raw_message(message)
+    return ignore_count, sent_count, padding_count
 
 
 def request_daily_reports(line_bot, event):
