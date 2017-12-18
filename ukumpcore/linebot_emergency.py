@@ -1,6 +1,7 @@
 
 from linebot.models import TemplateSendMessage, TextSendMessage, ButtonsTemplate, ConfirmTemplate, CarouselTemplate, PostbackTemplateAction
 from ukumpcore.crm.agile import create_crm_ticket, get_patient_crm_url
+from django.core.cache import cache
 from django.utils import timezone
 import json
 
@@ -157,13 +158,14 @@ def select_action(line_bot, event, value):
 
 
 def commit(line_bot, event, value, timeout=False):
-    value['t'] = timezone.now().timestamp()
-
     patient = Patient.objects.get(pk=value['pid'])
     message = format_message(value)
 
     if timeout:
         message = '此通報已經閒置過久，請重新點選提交送出\n %s' % message
+
+    key = '_line:emgerency:%s' % (event.source.user_id)
+    cache.set(key, True, 90)
 
     line_bot.reply_message(event.reply_token, TemplateSendMessage(
         alt_text='緊急通報',
@@ -177,9 +179,9 @@ def commit(line_bot, event, value, timeout=False):
 
 
 def submit(line_bot, event, value):
-    if timezone.now().timestamp() - value['t'] > 90:
-        commit(line_bot, event, value, timeout=True)
-    else:
+    key = '_line:emgerency:%s' % (event.source.user_id)
+    if key in cache:
+        cache.delete(key)
         source = utils.get_employee(event)
         if not source:
             source = utils.get_customer(event)
@@ -206,6 +208,8 @@ def submit(line_bot, event, value):
             event.reply_token,
             TextSendMessage(
                 text='緊急通報案件編號 #%s\n\n照護經理與關懷中心已收到您針對 %s 所送出的緊急通報，必要時請直接聯繫照護經理。' % (ticket_id, patient.name)))
+    else:
+        commit(line_bot, event, value, timeout=True)
 
 
 def handle_postback(line_bot, event, resp):
