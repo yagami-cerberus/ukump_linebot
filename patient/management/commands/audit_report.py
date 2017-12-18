@@ -37,7 +37,7 @@ class Command(BaseCommand):
             reports_map[r.patient_id] = r
 
         for patient in patients:
-            if (now - patient.ends_at).seconds < 1800:
+            if (now - patient.ends_at).total_seconds() < 1800:
                 continue
 
             reports = set(map(lambda n: n[1], filter(lambda m: m[0] > 0, zip(patient.form_masks, patient.form_ids))))
@@ -55,7 +55,7 @@ class Command(BaseCommand):
                     for ep in patient.managers.filter(manager__relation='照護經理'):
                         ep.push_message('[重要提醒]\n照護員尚未填寫個案 %s 日報表' % patient.name)
 
-                elif not r.reviewed_by_id and (now - r.created_at).seconds < 600:
+                elif not r.reviewed_by_id and (now - r.created_at).total_seconds() < 600:
                     review_url = settings.SITE_ROOT + reverse('patient_daily_report', args=(patient.id, r.report_date, r.report_period))
                     title = '[重要提醒] %s 的日報正在等待審核' % patient.name
                     text = '日期 %s\n照服員 %s\n' % (r.report_date, r.filled_by.name)
