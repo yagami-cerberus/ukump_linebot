@@ -7,7 +7,7 @@ import json
 
 from linebot.models import (
     TemplateSendMessage, TextSendMessage, ButtonsTemplate, CarouselTemplate, ConfirmTemplate,
-    PostbackTemplateAction)
+    PostbackTemplateAction, URITemplateAction)
 from employee.models import Profile as Employee
 from patient.models import Profile as Patient, DummyNote
 from care.models import CourseDetail
@@ -94,12 +94,16 @@ def select_patient(line_bot, event, value, patient=None):
         manager = patient.managers.filter(manager__relation='照護經理').first()
 
         if manager and manager.profile and 'phone' in manager.profile:
-            name, phone = manager.name, manager.profile['phone']
-            actions.append(
-                PostbackTemplateAction(
-                    '照護經理 %s' % name,
-                    json.dumps({'T': T_SIMPLE_QUERY, 'stage': STAGE_RETURN_CONTEXT,
-                                'V': '照護經理 %s\n聯絡電話 %s' % (name, phone)})))
+            name, phone = manager.name, manager.profile.get('phone')
+            if phone:
+                actions.append(
+                    URITemplateAction('照護經理 %s' % name, 'tel://+886' + phone[1:]))
+            else:
+                actions.append(
+                    PostbackTemplateAction(
+                        '照護經理 %s' % name,
+                        json.dumps({'T': T_SIMPLE_QUERY, 'stage': STAGE_RETURN_CONTEXT,
+                                    'V': '很抱歉，系統沒有照護經理 %s 的聯絡電話' % (name)})))
 
         for text_temp, queryset in (('照服員 %s (今日)', patient.nursing_schedule.today()),
                                     ('照服員 %s (明日)', patient.nursing_schedule.tomorrow())):

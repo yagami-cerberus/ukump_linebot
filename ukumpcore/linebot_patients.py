@@ -180,16 +180,12 @@ def contect_manager(line_bot, event, value):
 
 
 def begin_ticket(line_bot, event, value):
-    # patient = Patient.objects.filter(pk=value[0]).get()
-    # catalog = CATALOGS[value[1]]
     cache.set('_line:reply:%s' % event.source.user_id, {'T': T_PATIENT, 'V': value}, 500)
     line_bot.reply_message(event.reply_token, TextSendMessage(text='請輸入想詢問的問題...'))
 
 
 def final_ticket(line_bot, event, message, data):
     patient_id, catalog_id = data['V']
-    # patient = Patient.objects.filter(pk=data[0]).get()
-    # catalog = CATALOGS[data[1]]
 
     text = '詢問問題內容：\n%s' % message
     line_bot.reply_message(event.reply_token, TemplateSendMessage(
