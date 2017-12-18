@@ -212,6 +212,16 @@ class CareHistory(models.Model):
     answered_at = models.DateTimeField(auto_now_add=True)
 
 
+class LinebotDummyLog(models.Model):
+    class Meta:
+        db_table = 'linebot_dummy_log'
+
+    lineid = models.TextField()
+    catalog = models.TextField()
+    payload = models.ForeignKey(Profile, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
 class UkumpGlobal(models.Model):
     class Meta:
         db_table = "ukump_global"
