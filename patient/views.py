@@ -17,7 +17,8 @@ from ukumpcore import blackbox
 from employee.models import Profile as Employee
 from patient.models import (
     Profile as Patient,
-    CareDailyReport)
+    CareDailyReport,
+    LinebotDummyLog)
 from ukumpcore.linebot_utils import get_customer_id_from_lineid, get_employee_id_from_lineid, get_employee_from_lineid, get_customer_from_lineid
 from ukumpcore.linebot_handler import flush_messages_queue
 from ukumpcore.blackbox import daily_report_processor
@@ -88,7 +89,8 @@ def form_postback(request):
     if request.method == 'POST':
         try:
             doc = json.loads(request.body.decode())
-            token = '_daily_report_cache:%s' % doc['response']['payload'].pop(settings.CARE_REPORTS_SESSION_KEY, ';').split(';', 1)[-1]
+            session_key = doc['response']['payload'].pop(settings.CARE_REPORTS_SESSION_KEY, ';').split(';', 1)[-1]
+            token = '_daily_report_cache:%s' % session_key
             employee_id, patient_id, report_date, report_period, form_id = cache.get(token)
             cache.delete(token)
 
@@ -107,6 +109,8 @@ def form_postback(request):
 
         employee = Employee.objects.get(id=employee_id)
         patient = Patient.objects.get(id=patient_id)
+        LinebotDummyLog.append('google_session:%s' % session_key, 'postback_report', json.dumps(
+            {'patient_id': patient_id, 'date': report_date.strftime('%Y-%m-%d'), 'period': report_period}))
 
         report, created = CareDailyReport.objects.get_or_create(
             patient_id=patient_id, report_date=report_date, report_period=report_period,
@@ -150,6 +154,7 @@ def form_postback(request):
 class DailyReport(object):
     def __new__(cls, request, patient_id, date, period):
         line_id = request.session['line_id']
+
         if period != '18':
             raise Http404
         if request.method == 'GET':
@@ -160,8 +165,9 @@ class DailyReport(object):
             raise Http404
 
     @classmethod
-    def redirect_for_edit(cls, employee_id, patient, report_date, report_period, form_id, edit_url=None):
+    def redirect_for_edit(cls, line_id, employee_id, patient, report_date, report_period, form_id, edit_url=None):
         token = get_random_string(32)
+        LinebotDummyLog.append(line_id, 'begin_report', json.dumps({'patient_id': patient.id, 'date': report_date.strftime('%Y-%m-%d'), 'period': report_period, 'session_key': token}))
         cache.set('_daily_report_cache:%s' % token, (employee_id, patient.id, report_date, report_period, form_id), 3600)
 
         form = settings.CARE_REPORTS.get(form_id)
@@ -188,12 +194,12 @@ class DailyReport(object):
                 if patient.manager_set.filter(employee_id=employee_id, relation='照護經理') or \
                         CareDailyReport.is_nurse(employee_id, patient_id, report_date):
                     edit_url = report.report['_meta']['edit_url']
-                    return cls.redirect_for_edit(employee_id, patient, report_date, report_period, report.form_id, edit_url)
+                    return cls.redirect_for_edit(line_id, employee_id, patient, report_date, report_period, report.form_id, edit_url)
             else:
                 if patient.manager_set.filter(employee_id=employee_id, relation='照護經理') and \
                         (now() - report.updated_at).seconds < TIME_12HR:
                     edit_url = report.report['_meta']['edit_url']
-                    return cls.redirect_for_edit(employee_id, patient, report_date, report_period, report.form_id, edit_url)
+                    return cls.redirect_for_edit(line_id, employee_id, patient, report_date, report_period, report.form_id, edit_url)
                 elif CareDailyReport.is_nurse(employee_id, patient_id, report_date):
                     return HttpResponse('此份報表已經鎖定', content_type='text/plain; charset=utf-8')
                 else:
@@ -205,7 +211,7 @@ class DailyReport(object):
                 except RuntimeError as err:
                     return HttpResponse(err.args[0], content_type='text/plain; charset=utf-8')
 
-                return cls.redirect_for_edit(employee_id, patient, report_date, report_period, form_id)
+                return cls.redirect_for_edit(line_id, employee_id, patient, report_date, report_period, form_id)
             raise Http404
 
 

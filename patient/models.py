@@ -218,8 +218,12 @@ class LinebotDummyLog(models.Model):
 
     lineid = models.TextField()
     catalog = models.TextField()
-    payload = models.ForeignKey(Profile, on_delete=models.CASCADE)
+    payload = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+
+    @classmethod
+    def append(cls, userid, catalog, payload):
+        LinebotDummyLog(lineid=userid, catalog=catalog, payload=payload).save()
 
 
 class UkumpGlobal(models.Model):

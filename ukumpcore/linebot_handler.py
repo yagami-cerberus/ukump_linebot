@@ -14,12 +14,13 @@ import json
 from linebot import WebhookHandler
 from linebot.models import (
     MessageEvent, PostbackEvent, LocationMessage, TextMessage, TextSendMessage, PostbackTemplateAction, ConfirmTemplate,
-    TemplateSendMessage, ButtonsTemplate, CarouselTemplate, CarouselColumn, URITemplateAction, MessageTemplateAction
+    TemplateSendMessage, ButtonsTemplate, CarouselTemplate, CarouselColumn, URITemplateAction, MessageTemplateAction,
+    ImageMessage, VideoMessage, StickerMessage
 )
 
 from . import linebot_emergency, linebot_patients, linebot_report, linebot_simplequery, linebot_nursing, linebot_customer
 from ukumpcore.linebot_utils import line_bot, NotMemberError, LineMessageError, is_system_admin
-from patient.models import CareDailyReport
+from patient.models import CareDailyReport, LinebotDummyLog
 from employee.models import LineMessageQueue as EmployeeLineMessageQueue
 from customer.models import LineMessageQueue as CustomerLineMessageQueue
 
@@ -164,6 +165,7 @@ def flush_messages_queue():
 def handle_postback(event):
     if event.source.type != 'user':
         return
+    LinebotDummyLog.append(event.source.user_id, 'postback', event.postback.data)
 
     resp = json.loads(event.postback.data)
     target = resp['T']
@@ -188,7 +190,8 @@ def handle_postback(event):
 @line_error_handler
 def handle_message(event):
     if event.source.type != "user":
-        raise RuntimeError("Unkown line message type: %s (%s)" % (event.source.type, event))
+        return
+    LinebotDummyLog.append(event.source.user_id, 'text', event.message.text)
 
     if event.message.text == '由康照護':
         linebot_customer.main_page(line_bot, event)
@@ -252,7 +255,33 @@ def handle_message(event):
 @handler.add(MessageEvent, message=LocationMessage)
 @line_error_handler
 def handle_location(event):
-    pass
+    if event.source.type != "user":
+        return
+    LinebotDummyLog.append(event.source.user_id, 'location', event.message.as_json_string())
+
+
+@handler.add(MessageEvent, message=ImageMessage)
+@line_error_handler
+def handle_image(event):
+    if event.source.type != "user":
+        return
+    LinebotDummyLog.append(event.source.user_id, 'image', event.message.as_json_string())
+
+
+@handler.add(MessageEvent, message=VideoMessage)
+@line_error_handler
+def handle_video(event):
+    if event.source.type != "user":
+        return
+    LinebotDummyLog.append(event.source.user_id, 'video', event.message.as_json_string())
+
+
+@handler.add(MessageEvent, message=StickerMessage)
+@line_error_handler
+def handle_sticker(event):
+    if event.source.type != "user":
+        return
+    LinebotDummyLog.append(event.source.user_id, 'sticker', event.message.as_json_string())
 
 
 # @handler.add(MessageEvent, message=FileMessage)
