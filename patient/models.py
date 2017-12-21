@@ -124,11 +124,11 @@ class NursingSchedule(models.Model):
 
     def today_courses(self):
         return self.patient.course_schedule.extra(
-            where=("(weekly_mask & 1 << EXTRACT(DOW FROM current_timestamp AT TIME ZONE 'Asia/Taipei')::int) > 0", ))
+            where=("(weekly_mask & (1 << EXTRACT(DOW FROM current_timestamp AT TIME ZONE 'Asia/Taipei')::int)) > 0", ))
 
     def fetch_next_question(self):
         courses_id = self.patient.course_schedule.extra(
-            where=("(weekly_mask & 1 << EXTRACT(DOW FROM current_timestamp AT TIME ZONE 'Asia/Taipei')::int) > 0", )
+            where=("(weekly_mask & (1 << EXTRACT(DOW FROM current_timestamp AT TIME ZONE 'Asia/Taipei')::int)) > 0", )
         ).values_list('table_id', flat=True)
         items = CourseQuestion.objects.filter(table_id__in=courses_id).extra(
             where=("care_course_question.scheduled_at > (SELECT (flow_control AT TIME ZONE 'Asia/Taipei')::Time FROM patient_nursing_schedule WHERE id = %i)" % self.id,
