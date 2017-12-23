@@ -40,7 +40,8 @@ def generate_line_cards(patient, date):
     token = get_random_string(16)
     text_date = date.strftime("%Y-%m-%d")
     cache.set('_patient_card:%s' % token, json.dumps({'p': patient.id, 'd': text_date}), 259200)
-    imgurl_base = "https://76o5au1sya.execute-api.ap-northeast-1.amazonaws.com/staged/integrations/%%s/?token=%s" % token
+    imgurl_base = settings.SITE_ROOT + reverse('patient_card', args=("%s", )) + "?token=" + token
+    # imgurl_base = "https://76o5au1sya.execute-api.ap-northeast-1.amazonaws.com/staged/integrations/%%s/?token=%s" % token
 
     columns = [CarouselColumn(
         thumbnail_image_url=imgurl_base % i,
@@ -71,7 +72,8 @@ def prepare_dairly_cards():
 
         token = get_random_string(16)
         cache.set('_patient_card:%s' % token, json.dumps({'p': patient.id, 'd': date.strftime("%Y-%m-%d")}), 259200)
-        imgurl_base = "https://76o5au1sya.execute-api.ap-northeast-1.amazonaws.com/staged/integrations/%%s/?token=%s" % token
+        imgurl_base = settings.SITE_ROOT + reverse('patient_card', args=("%s", )) + "?token=" + token
+        # imgurl_base = "https://76o5au1sya.execute-api.ap-northeast-1.amazonaws.com/staged/integrations/%%s/?token=%s" % token
 
         message = json.dumps({
             'M': 'carousel',
