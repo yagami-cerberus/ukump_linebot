@@ -40,11 +40,10 @@ def generate_line_cards(patient, date):
     token = get_random_string(16)
     text_date = date.strftime("%Y-%m-%d")
     cache.set('_patient_card:%s' % token, json.dumps({'p': patient.id, 'd': text_date}), 259200)
-    imgurl_base = settings.SITE_ROOT + reverse('patient_card', args=("%s", )) + "?token=" + token
     # imgurl_base = "https://76o5au1sya.execute-api.ap-northeast-1.amazonaws.com/staged/integrations/%%s/?token=%s" % token
 
     columns = [CarouselColumn(
-        thumbnail_image_url=imgurl_base % i,
+        thumbnail_image_url="%s%s?token=%s" % (settings.SITE_ROOT, reverse('patient_card', args=(i, )), token),
         title=label,
         text=text_date,
         actions=(
@@ -72,14 +71,13 @@ def prepare_dairly_cards():
 
         token = get_random_string(16)
         cache.set('_patient_card:%s' % token, json.dumps({'p': patient.id, 'd': date.strftime("%Y-%m-%d")}), 259200)
-        imgurl_base = settings.SITE_ROOT + reverse('patient_card', args=("%s", )) + "?token=" + token
         # imgurl_base = "https://76o5au1sya.execute-api.ap-northeast-1.amazonaws.com/staged/integrations/%%s/?token=%s" % token
 
         message = json.dumps({
             'M': 'carousel',
             'alt': '%s 在 %s 的日報表已經可以查閱' % (patient.name, text_date),
             'columns': [
-                {'imgurl': imgurl_base % i,
+                {'imgurl': "%s%s?token=%s" % (settings.SITE_ROOT, reverse('patient_card', args=(i, )), token),
                  'title': label,
                  'text': text_date,
                  'actions': [{'type': 'url', 'label': '查閱詳情', 'url': settings.SITE_ROOT + reverse("patient_summary", args=(patient.pk, )) + '#catalog-%i' % i},
