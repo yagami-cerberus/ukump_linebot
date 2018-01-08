@@ -110,7 +110,7 @@ def select_patient(line_bot, event, value, patient=None):
             for schedule in queryset:
                 actions.append(
                     PostbackTemplateAction(
-                        text_temp % name,
+                        text_temp % schedule.employee.name,
                         json.dumps({'T': T_SIMPLE_QUERY, 'stage': STAGE_SEND_NOTE,
                                     'V': (schedule.employee.id, patient.id, None)})))
 
@@ -129,9 +129,9 @@ class SharedNote(object):
 
         text = []
         tsize = 0
-        for dn in patient.dummynote_set.order_by('-created_at').iterator():
+        for dn in patient.dummynote_set.order_by('-created_at')[:8]:
             t = dn.created_at.astimezone(timezone.get_current_timezone())
-            lt = '%s 在 %s\n%s' % (dn.name, t.strftime('%Y-%m-%d %H點%M分'), dn.message)
+            lt = '==== %s 在 %s: %s\n' % (dn.name, t.strftime('%Y-%m-%d %H點%M分'), dn.message)
             tsize += len(lt) + 20
             text.append(lt)
             if tsize > 160:
@@ -139,7 +139,7 @@ class SharedNote(object):
 
         if text:
             text.reverse()
-            message = '\n====\n'.join(text)[:160]
+            message = ''.join(text)
         else:
             message = '沒有留言'
 

@@ -83,6 +83,7 @@ def exchange_code(line_bot, event, value):
     if customers:
         for customer in customers:
             customer.push_message('個案 %s 邀請碼：\n%s' % (patient.name, validate_code))
+        line_bot.reply_message(event.reply_token, TextSendMessage('已將邀請碼轉送給客戶。'))
     else:
         line_bot.reply_message(event.reply_token, TextSendMessage('沒有客戶可以傳送。'))
 

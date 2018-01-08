@@ -11,6 +11,14 @@ from employee.models import Profile as Employee, LineBotIntegration as EmployeeL
 from patient.models import Profile as Patient, Guardian
 
 
+def send_sns(validate_code, pnum):
+    import boto3
+    sns = boto3.client('sns', region_name='us-west-2',
+                       aws_access_key_id='AKIAJBQPIFJNHGKXI3EA',
+                       aws_secret_access_key='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')
+    sns.publish(Message='您在由康照護的驗證碼為 %s ' % validate_code, PhoneNumber='+886' + pnum[1:])
+
+
 @require_lineid
 class LineAssociation(object):
     def __new__(cls, request, role):
@@ -81,7 +89,8 @@ class LineAssociation(object):
             if request.POST.get('submit') == 'check':
                 validate_code = get_random_string(8, allowed_chars='1234567890')
                 request.session['cmatch'] = (cnum, customer.name, None, validate_code)
-                messages.info(request, '認證碼已送出 (%s)' % validate_code)
+                send_sns(validate_code, cnum)
+                messages.info(request, '認證碼已送出')
                 return cls.render(request, 'customer', confirm=True)
             else:
                 cnum, _, _, validate_code = request.session.get('cmatch', (None, None, None, None))
@@ -114,8 +123,8 @@ class LineAssociation(object):
         if request.POST.get('submit') == 'check':
             validate_code = get_random_string(8, allowed_chars='1234567890')
             request.session['ematch'] = (validate_code, employee.id)
-
-            messages.info(request, '認證碼已送出 (%s)' % validate_code)
+            send_sns(validate_code, pnum)
+            messages.info(request, '認證碼已送出')
             return cls.render(request, 'employee', confirm=True)
 
         else:
@@ -156,7 +165,8 @@ class LineAssociation(object):
                 validate_code = get_random_string(8, allowed_chars='1234567890')
 
                 request.session['gmatch'] = (cnum, cname, cemail, crel, cinv, validate_code)
-                messages.info(request, '認證碼已送出 (%s)' % validate_code)
+                send_sns(validate_code, cnum)
+                messages.info(request, '認證碼已送出')
                 return cls.render(request, 'guest', confirm=True)
 
             else:

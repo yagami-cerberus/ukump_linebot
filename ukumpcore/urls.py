@@ -42,7 +42,7 @@ urlpatterns = [
 
     # 卡片
     url(r'^patient/card/(?P<card>\d{1})/$', patient_view.dairy_card, name='patient_card'),
-
+    url(r'^patient/card/(?P<card>\d{1})/html$', patient_view.daily_card_html, name='patient_card_html'),
 
     url(r'^integrations/linebot$', linebot_handler),
     url(r'^integrations/linebot/nav/([a-z_-]{1,30})', linelogin_handler.nav, name='line_nav'),

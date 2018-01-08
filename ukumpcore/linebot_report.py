@@ -130,15 +130,14 @@ def select_patient(line_bot, event, value=None, patient=None, role=None):
         if bill_url and (bill_url.startswith('http://') or bill_url.startswith('https://')):
             actions.append(URITemplateAction('帳單查詢', bill_url))
         else:
-            actions.append(PostbackTemplateAction('帳單查詢', {'T': T_REPORT, 'stage': STAGE_REJECT, 'V': '沒有帳單'}))
+            actions.append(PostbackTemplateAction('帳單查詢', json.dumps({'T': T_REPORT, 'stage': STAGE_REJECT, 'V': '沒有帳單'})))
 
         if payment_url and (payment_url.startswith('http://') or payment_url.startswith('https://')):
             actions.append(URITemplateAction('線上繳費', payment_url))
         else:
-            actions.append(PostbackTemplateAction('線上繳費', {'T': T_REPORT, 'stage': STAGE_REJECT, 'V': '沒有繳費資料'}))
+            actions.append(PostbackTemplateAction('線上繳費', json.dumps({'T': T_REPORT, 'stage': STAGE_REJECT, 'V': '沒有繳費資料'})))
 
         actions.append(URITemplateAction('客戶滿意度', 'https://www.google.com/'))
-
         line_bot.reply_message(event.reply_token, TemplateSendMessage(
             alt_text='%s 照護秘書' % str_now,
             template=ButtonsTemplate(

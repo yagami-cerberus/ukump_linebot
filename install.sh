@@ -15,11 +15,16 @@ fi
 
 echo 安裝必要系統套件...
 sleep 0.5
-sudo apt-get -y install uwsgi python3-pip git xvfb wkhtmltopdf libpq-dev python3-dev uwsgi-plugin-python3
+sudo apt-get -y install uwsgi python3-pip git libpq-dev python3-dev uwsgi-plugin-python3 nodejs npm
 if [ $? -ne 0 ]; then
     echo 無法安裝必要系統套件...
     exit 1
 fi
+
+echo 安裝 nodejs 相關套件(出png圖用)...
+sleep 0.5
+npm install -g phantomjs
+
 
 echo 安裝 python 相關套件...
 sleep 0.5

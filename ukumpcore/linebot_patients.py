@@ -36,20 +36,27 @@ CRM Ticket #%(ticket_id)s
 %(ticket_url)s"""
 
 
+def generate_image_url(card_index, token):
+    if settings.SITE_ROOT.startswith('https://'):
+        return '%s%s?token=%s' % (settings.SITE_ROOT, reverse('patient_card', args=(card_index, )), token)
+    else:
+        return 'https://76o5au1sya.execute-api.ap-northeast-1.amazonaws.com/staged/integrations/%s/?token=%s' % (card_index, token)
+
+
 def generate_line_cards(patient, date):
     token = get_random_string(16)
     text_date = date.strftime("%Y-%m-%d")
     cache.set('_patient_card:%s' % token, json.dumps({'p': patient.id, 'd': text_date}), 259200)
-    # imgurl_base = "https://76o5au1sya.execute-api.ap-northeast-1.amazonaws.com/staged/integrations/%%s/?token=%s" % token
 
     columns = [CarouselColumn(
-        thumbnail_image_url="%s%s?token=%s" % (settings.SITE_ROOT, reverse('patient_card', args=(i, )), token),
+        thumbnail_image_url=generate_image_url(i, token),
         title=label,
         text=text_date,
         actions=(
             URITemplateAction('查閱詳情', settings.SITE_ROOT + reverse("patient_summary", args=(patient.pk, )) + "#%i" % i),
             PostbackTemplateAction('聯繫照護團隊', json.dumps({'T': T_PATIENT, 'stage': STAGE_CONTECT, 'V': (patient.id, i)}))
         )) for i, label in enumerate(CATALOGS)]
+    print(columns)
     return TemplateSendMessage(alt_text='%s 在 %s 的日報表已經可以查閱' % (patient.name, text_date),
                                template=CarouselTemplate(columns=columns))
 
@@ -71,13 +78,12 @@ def prepare_dairly_cards():
 
         token = get_random_string(16)
         cache.set('_patient_card:%s' % token, json.dumps({'p': patient.id, 'd': date.strftime("%Y-%m-%d")}), 259200)
-        # imgurl_base = "https://76o5au1sya.execute-api.ap-northeast-1.amazonaws.com/staged/integrations/%%s/?token=%s" % token
 
         message = json.dumps({
             'M': 'carousel',
             'alt': '%s 在 %s 的日報表已經可以查閱' % (patient.name, text_date),
             'columns': [
-                {'imgurl': "%s%s?token=%s" % (settings.SITE_ROOT, reverse('patient_card', args=(i, )), token),
+                {'imgurl': generate_image_url(i, token),
                  'title': label,
                  'text': text_date,
                  'actions': [{'type': 'url', 'label': '查閱詳情', 'url': settings.SITE_ROOT + reverse("patient_summary", args=(patient.pk, )) + '#catalog-%i' % i},

@@ -5,12 +5,14 @@ from django.utils.timezone import now, localdate
 from django.utils.crypto import get_random_string
 from django.core.cache import cache
 from django.shortcuts import render, redirect
-from django.http import HttpResponse, Http404
+from django.http import Http404, FileResponse, HttpResponse
 from django.conf import settings
 from django.urls import reverse
 from urllib.parse import quote
+from tempfile import mkdtemp
 import logging
 import json
+import os
 
 from ukumpcore.linebot_utils import require_lineid
 from ukumpcore import blackbox
@@ -41,6 +43,7 @@ CRM Ticket
 
 logger = logging.getLogger('ukump')
 
+CARD_TEMP_FOLDER = mkdtemp()
 REPORT_FIELDS = (('血壓/收縮壓(mmHg)', '血壓'), ('血壓/舒張壓(mmHg)', ''), ('脈搏(次/分)', '脈搏'), ('個案情緒', '個案情緒'), ('參與狀況', '參與狀況'))
 
 
@@ -100,11 +103,8 @@ def form_postback(request):
                 'google_id': doc['response']['id'],
                 'timestamp': doc['response']['timestamp']
             }
-        except (ValueError, KeyError, TypeError):
-            logger.error('invaild form postback: %s', request.body)
-            return HttpResponse('', content_type='text/plain; charset=utf-8')
-        except AttributeError:
-            logger.info('cache get null')
+        except Exception as err:
+            logger.exception('invaild form postback')
             return HttpResponse('', content_type='text/plain; charset=utf-8')
 
         employee = Employee.objects.get(id=employee_id)
@@ -264,6 +264,27 @@ def dairy_card(request, card):
     if "HTTP_X_AMZN_TRACE_ID" in request.META:
         return redirect(request.build_absolute_uri(reverse('patient_card', args=(card,))) + "?token=" + request.GET['token'])
 
+    token = request.GET.get('token')
+    img_path = os.path.join(CARD_TEMP_FOLDER, '%s-%s.png' % (token, card))
+
+    if os.path.exists(img_path) is False:
+        c = cache.get('_patient_card:%s' % request.GET.get('token'))
+        if c:
+            ret = os.system('phantomjs misc/rasterize.js %s %s 1024px*678px' % (
+                request.build_absolute_uri(reverse('patient_card_html', args=(card,))) + "?token=" + request.GET['token'],
+                img_path
+            ))
+            if ret != 0:
+                img_path = './patient/static/patient/server_error.png'
+        else:
+            raise Http404
+
+    resp = FileResponse(open(img_path, 'rb'), content_type="image/png")
+    resp["Content-Disposition"] = "filename=\"card-%s.png\"" % card
+    return resp
+
+
+def daily_card_html(request, card):
     c = cache.get('_patient_card:%s' % request.GET.get('token'))
     if not c:
         raise Http404
@@ -272,8 +293,11 @@ def dairy_card(request, card):
     patient = Patient.objects.get(pk=session['p'])
     date = parse_date(session['d'])
     reports = patient.caredailyreport_set.filter(report_date=date)
-    img = blackbox.cards[int(card)](patient, date, reports)
-    resp = HttpResponse(content_type="image/png")
-    resp["Content-Disposition"] = "filename=\"card.png\""
-    img.save(resp, "PNG")
-    return resp
+    catalog, status = blackbox.cards[int(card)](reports)
+
+    return render(request, 'patient/card.html', {
+        'patient': patient,
+        'card_index': card,
+        'catalog': catalog,
+        'status': status
+    })
