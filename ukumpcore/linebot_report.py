@@ -137,7 +137,7 @@ def select_patient(line_bot, event, value=None, patient=None, role=None):
         else:
             actions.append(PostbackTemplateAction('線上繳費', json.dumps({'T': T_REPORT, 'stage': STAGE_REJECT, 'V': '沒有繳費資料'})))
 
-        actions.append(URITemplateAction('客戶滿意度', 'https://www.google.com/'))
+        actions.append(URITemplateAction('客戶滿意度', settings.SITE_ROOT + reverse('customer_feedback')))
         line_bot.reply_message(event.reply_token, TemplateSendMessage(
             alt_text='%s 照護秘書' % str_now,
             template=ButtonsTemplate(

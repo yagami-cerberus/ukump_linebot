@@ -1,14 +1,61 @@
 
+from django.views.decorators.csrf import csrf_exempt
 from django.utils.crypto import get_random_string
 from django.core.cache import cache
 from django.shortcuts import render, redirect
 from django.contrib import messages
+from django.http import HttpResponse
+from django.conf import settings
+import logging
+import json
+
 
 from ukumpcore.linebot_utils import line_bot, require_lineid, get_customer_from_lineid, get_employee_from_lineid
 from ukumpcore.crm.agile import create_crm_contect, update_crm_guardian
 from customer.models import Profile as Customer, LineBotIntegration as CustomerLine
 from employee.models import Profile as Employee, LineBotIntegration as EmployeeLine
 from patient.models import Profile as Patient, Guardian
+
+logger = logging.getLogger('ukump')
+
+
+@csrf_exempt
+def form_feedback(request):
+    if request.method == 'GET':
+        line_id = request.session['line_id']
+
+        session_key = token = get_random_string(32)
+        token = '_feed_back_cache:%s' % session_key
+        customer = get_customer_from_lineid(line_id)
+        cache.set(token, customer.id, 3600)
+        return redirect(settings.FEEDBACK_URL % ('%s;%s' % (customer.name, session_key)))
+
+    else:
+        try:
+            doc = json.loads(request.body.decode())
+            session_key = doc['response']['payload'].pop('您的姓名是?', ';').split(';', 1)[-1]
+            token = '_feed_back_cache:%s' % session_key
+
+            customer_id = cache.get(token)
+            if not customer_id:
+                raise RuntimeError('token error')
+            cache.delete(token)
+            customer = Customer.objects.filter(id=customer_id).first()
+            if not customer:
+                raise RuntimeError('customer id error')
+
+            customer.push_message('已經收到您的意見調查表')
+            for p in customer.patients.all():
+                for employee in p.managers.filter(manager__relation='照護經理'):
+                    employee.push_message('客戶 %s 填寫了意見調查報\n%s' % (customer.name, doc['response']['editUrl']))
+
+        except RuntimeError:
+            employee = Employee.objects.filter(linebotintegration__lineid=settings.LINEBOT_ADMIN).first()
+            if employee:
+                employee.push_message('有一份無法辨識的客戶意見調查報表等待確認\n%s' % doc['response']['editUrl'])
+        except Exception as err:
+            logger.exception('invaild form postback')
+            return HttpResponse('', content_type='text/plain; charset=utf-8')
 
 
 def send_sns(validate_code, pnum):
