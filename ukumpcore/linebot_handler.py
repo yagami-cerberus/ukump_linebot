@@ -2,6 +2,7 @@
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models.functions import Now
 from django.db.models import signals
+from django.utils.timezone import localdate, localtime
 from django.core.cache import cache
 from django.dispatch import receiver
 from django.utils import timezone
@@ -229,6 +230,11 @@ def handle_message(event):
                     elif event.message.text == '3':
                         a, b, c = linebot_patients.prepare_dairly_cards()
                         line_bot.reply_message(event.reply_token, TextSendMessage(text='%i 個個案已送出卡片\n%i 個個案等待審核\n%i 個個案已略過 (本日已送出)' % (b, c, a)))
+                    elif event.message.text == '7':
+                        try:
+                            sync_schedule_from_csv(event)
+                        except RuntimeError:
+                            pass
                     elif event.message.text == '8':
                         sync_employees_from_csv(event)
                     elif event.message.text == '9':
@@ -243,6 +249,7 @@ def handle_message(event):
                                  '1 - 立刻清空訊息柱列\n'
                                  '2 - 立刻檢查照護排程清單\n'
                                  '3 - 立刻送出客戶卡片\n'
+                                 '7 - 從 csv 同步班表\n'
                                  '8 - 從 csv 同步員工資料\n'
                                  '9 - 從 CRM 更新個案資料'))
                 except Exception as err:
@@ -284,23 +291,6 @@ def handle_sticker(event):
     LinebotDummyLog.append(event.source.user_id, 'sticker', event.message.as_json_string())
 
 
-# @handler.add(MessageEvent, message=FileMessage)
-# @line_error_handler
-# def handle_attachment_file(event):
-#     if is_system_admin(event):
-#         file_id = event.message.id
-
-#         line_bot.reply_message(event.reply_token, TemplateSendMessage(
-#             alt_text='請選擇檔案處理方式',
-#             template=ButtonsTemplate(
-#                 title='請選擇檔案處理方式',
-#                 text='檔案: %s' % event.message.file_name,
-#                 actions=(
-#                     PostbackTemplateAction('班表', json.dumps({'T': 'attachfile', 'file_id': file_id, 'catalog': 'schedule'})),
-#                     PostbackTemplateAction('員工清單', json.dumps({'T': 'attachfile', 'file_id': file_id, 'catalog': 'employee'})),
-#                 ))))
-
-
 @receiver([signals.post_save], sender=CareDailyReport)
 def save_care_dairly_report(sender, instance, created, **kwargs):
     if created:
@@ -336,18 +326,59 @@ def flush_message_while_saving(sender, instance, created, **kwargs):
 def sync_employees_from_csv(event):
     from ukumpcore.crm.agile import get_employees_from_crm_document, update_employee_from_from_csv
 
-    line_bot.push_message(event.source.user_id, TextSendMessage('準備從 CRM 的 CSV 取得資料，這會使用一段時間...'))
-    created, updated_from_hr_id, updated_from_email = 0, 0, 0
+    try:
+        line_bot.push_message(event.source.user_id, TextSendMessage('準備從 CRM 的 CSV 取得資料，這會使用一段時間...'))
+        created, updated_from_hr_id, updated_from_email = 0, 0, 0
 
-    for doc in get_employees_from_crm_document():
-        is_created, is_updated_from_hr_id, is_updated_from_email = update_employee_from_from_csv(doc)
-        if is_created:
-            created += 1
-        elif is_updated_from_hr_id:
-            updated_from_hr_id += 1
-        elif is_updated_from_email:
-            updated_from_email += 1
+        for doc in get_employees_from_crm_document():
+            is_created, is_updated_from_hr_id, is_updated_from_email = update_employee_from_from_csv(doc)
+            if is_created:
+                created += 1
+            elif is_updated_from_hr_id:
+                updated_from_hr_id += 1
+            elif is_updated_from_email:
+                updated_from_email += 1
+    except RuntimeError as err:
+        line_bot.push_message(event.source.user_id, TextSendMessage('%s' % err.args[0]))
+        raise
 
     line_bot.push_message(
         event.source.user_id,
         TextSendMessage('建立: %i\nUpdated from 員工ID: %i\nUpdated from email: %i' % (created, updated_from_hr_id, updated_from_email)))
+
+
+@transaction.atomic
+def sync_schedule_from_csv(event):
+    from ukumpcore.crm.agile import get_schedule_from_crm_document, update_schedule_from_csv
+    from patient.models import NursingSchedule
+
+    line_bot.push_message(event.source.user_id, TextSendMessage('準備從 CRM 的 CSV 取得資料，這會使用一段時間...'))
+    old_counter, _ = NursingSchedule.objects.with_date().filter(date__gt=localdate()).delete()
+
+    proc_counter = 0
+    error_counter = 0
+    now = localtime()
+    today = now.date()
+    tzinfo = now.tzinfo
+
+    try:
+        for doc in get_schedule_from_crm_document():
+            try:
+                if update_schedule_from_csv(doc, today, tzinfo):
+                    proc_counter += 1
+            except RuntimeError as err:
+                line_bot.push_message(event.source.user_id, TextSendMessage('%s' % err.args[0]))
+
+                if error_counter > 5:
+                    raise RuntimeError('錯誤發生次數過多，更新程序已經取消')
+                else:
+                    error_counter += 1
+            except Exception as err:
+                raise RuntimeError('發生無法處理錯誤，更新程序已經取消 %s' % err)
+    except RuntimeError as err:
+        line_bot.push_message(event.source.user_id, TextSendMessage('%s' % err.args[0]))
+        raise
+
+    line_bot.push_message(
+        event.source.user_id,
+        TextSendMessage('建立: %i\n刪除: %i' % (proc_counter, old_counter)))

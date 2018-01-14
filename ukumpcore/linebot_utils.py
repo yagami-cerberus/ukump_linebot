@@ -6,11 +6,8 @@ from django.urls import reverse
 from django.conf import settings
 from collections import namedtuple
 from urllib.parse import quote
-from itertools import islice
-from io import StringIO
 import pytz
 import json
-import csv
 
 from linebot.models import PostbackTemplateAction, CarouselColumn
 from linebot import LineBotApi
@@ -93,7 +90,7 @@ def get_patients(event):
 
 
 def generate_patients_card(title, text, params, patients, label=lambda x: x.name, value=lambda x: x.id):
-    l = len(patients)
+    l = len(patients)  # noqa
     columns = []
     for i in range(0, l, 3):
         actions = []
@@ -123,19 +120,6 @@ def require_lineid(fn):
         else:
             return fn(request, *args, **kw)
     return wrapper
-
-
-def sync_employee(message_content):
-    buf = StringIO()
-    for chunk in message_content.iter_content():
-        buf.write(chunk.decode('utf8'))
-    buf.seek(0)
-    it = csv.reader(buf)
-    for row in islice(it, 8, None):
-        hid = row[1]
-        name = row[2]
-        phone = row[12]
-        email = row[13]
 
 
 def is_system_admin(event):

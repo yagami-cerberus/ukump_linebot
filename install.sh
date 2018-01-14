@@ -29,7 +29,7 @@ npm install -g phantomjs
 echo 安裝 python 相關套件...
 sleep 0.5
 pip3 install --upgrade pip
-pip3 install django psycopg2 line-bot-sdk pillow
+pip3 install django psycopg2 line-bot-sdk python-dateutil
 
 
 echo 準備安裝 ukumpcore...

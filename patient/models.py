@@ -93,6 +93,9 @@ class CourseSchedule(models.Model):
 
 
 class ScheduleManager(models.Manager):
+    def with_date(self):
+        return self.get_queryset().annotate(date=TruncDate(Cast(Lower('schedule'), dt_field)))
+
     def schedule_at(self, date):
         return self.get_queryset().extra(where=(
             "(LOWER(schedule) AT TIME ZONE 'Asia/Taipei')::Date = ('%s')::Date" % (date.strftime('%Y-%m-%d'), ),))

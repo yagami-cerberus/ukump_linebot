@@ -1,10 +1,13 @@
 
+from psycopg2.extras import DateTimeTZRange
 from http.client import HTTPSConnection
 from urllib.request import urlopen
 from urllib.parse import urlencode
 from django.conf import settings
 from django.db import transaction
 from itertools import groupby
+from datetime import datetime, timedelta
+from dateutil import parser
 from base64 import b64encode
 from io import StringIO
 import time
@@ -13,7 +16,7 @@ import csv
 
 from customer.models import Profile as Customer
 from employee.models import Profile as Employee
-from patient.models import Profile as Patient
+from patient.models import Profile as Patient, NursingSchedule
 from patient.models import UkumpGlobal
 
 
@@ -375,7 +378,7 @@ def create_crm_contect(name, email, phone):
         raise
 
 
-def get_employees_from_crm_document():
+def get_crm_document(doc_name):
     conn = HTTPSConnection(DOMAIN)
 
     conn.request('GET', '/dev/api/documents/contact/5692767623708672/docs',
@@ -386,34 +389,35 @@ def get_employees_from_crm_document():
     bbody = resp.read()
     doc_lists = json.loads(bbody.decode())
     for doc in doc_lists:
-        if doc['name'] == 'UKump-Empl-LINE-Sync' and doc['extension'].endswith('.csv'):
+        if doc['name'] == doc_name and doc['extension'].endswith('.csv'):
             resp = urlopen(doc['url'])
             assert resp.status == 200
-            f = StringIO(resp.read().decode())
-            reader = csv.reader(f)
-            if '公司名稱：由康照護股份有限公司' not in next(reader)[0]:
-                raise RuntimeError('未預期的資料格式')
-            if '資料類型：員工資料匯出' not in next(reader)[0]:
-                raise RuntimeError('未預期的資料格式')
-            for i in range(5):
-                next(reader)
-            if next(reader) != ['', '員工編號', '姓名', '生日', '英文姓名', '性別', '國籍', '婚姻狀況', '身份族群', '身心障礙類別', '兵役狀況', '公司電話', '行動電話', '公司email', '通訊地址', '聯絡人姓名/關係', '聯絡人電話', '個人email', '戶籍地址', '到職日期', '試滿日期', '部門', '員工類型', '職務類別', '職位', '責任區分', '直/間接人員', '編制狀態', '在職狀態', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']:
-                raise RuntimeError("員工匯入欄位格式不符合預期")
-
-            for line in reader:
-                doc = {
-                    'hr_id': line[1],
-                    'name': line[2],
-                    'phone': line[12],
-                    'email': line[13],
-                    'title': line[23]
-                }
-
-                yield doc
-            break
+            return resp
     else:
-        raise RuntimeError('找不到名稱為 UKump-Empl-LINE-Sync 的 .csv 文件')
-        yield
+        raise RuntimeError('找不到名稱為 %s 的 .csv 文件' % doc_name)
+
+
+def get_employees_from_crm_document(doc_name='UKump-Empl-LINE-Sync'):
+    resp = get_crm_document(doc_name)
+    f = StringIO(resp.read().decode())
+    reader = csv.reader(f)
+    if '公司名稱：由康照護股份有限公司' not in next(reader)[0]:
+        raise RuntimeError('未預期的資料格式')
+    if '資料類型：員工資料匯出' not in next(reader)[0]:
+        raise RuntimeError('未預期的資料格式')
+    for i in range(5):
+        next(reader)
+    if next(reader) != ['', '員工編號', '姓名', '生日', '英文姓名', '性別', '國籍', '婚姻狀況', '身份族群', '身心障礙類別', '兵役狀況', '公司電話', '行動電話', '公司email', '通訊地址', '聯絡人姓名/關係', '聯絡人電話', '個人email', '戶籍地址', '到職日期', '試滿日期', '部門', '員工類型', '職務類別', '職位', '責任區分', '直/間接人員', '編制狀態', '在職狀態', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']:
+        raise RuntimeError("員工匯入欄位格式不符合預期")
+
+    for line in reader:
+        yield {
+            'hr_id': line[1],
+            'name': line[2],
+            'phone': line[12],
+            'email': line[13],
+            'title': line[23]
+        }
 
 
 def update_employee_from_from_csv(doc):
@@ -440,3 +444,72 @@ def update_employee_from_from_csv(doc):
                                                    'title': doc['title']}, members=[])
     employee.save()
     return True, False, False
+
+
+def get_schedule_from_crm_document(doc_name='UKump-Schedule-LINE-Sync'):
+    resp = get_crm_document(doc_name)
+    f = StringIO(resp.read().decode())
+    reader = csv.reader(f)
+    if '由康照護股份有限公司' not in next(reader)[0]:
+        raise RuntimeError('未預期的資料格式')
+    if next(reader)[:6] != ['員工編號', '合約編號', '性質', '日期', '開始時間', '服務時數']:
+        raise RuntimeError("班表匯入欄位格式不符合預期")
+
+    for line in reader:
+        yield {
+            'hr_id': line[0],
+            'case_id': line[1],
+            'type': line[2],
+            'date': line[3],
+            'start_time': line[4],
+            'duration': line[5]
+        }
+
+
+def update_schedule_from_csv(doc, today, tzinfo):
+    try:
+        date = parser.parse(doc['date']).date()
+    except ValueError:
+        raise RuntimeError('無法處理排程日期欄位: %s' % doc['date'])
+
+    if date <= today:
+        return False
+
+    try:
+        time = parser.parse(doc['start_time'])
+    except ValueError:
+        raise RuntimeError('無法處理排程時間欄位: %s' % doc['start_time'])
+
+    begin_at = datetime(date.year, date.month, date.day,
+                        time.hour, time.minute, time.second,
+                        tzinfo=tzinfo)
+    try:
+        end_at = begin_at + timedelta(hours=float(doc['duration']))
+    except ValueError:
+        raise RuntimeError('無法處理服務時數欄位: %s' % doc['duration'])
+
+    if end_at.date() != begin_at.date():
+        raise RuntimeError('服務時間不能跨日，日期 %s, 員工編號 %s, 個案 %s' % (date, doc['hr_id'], doc['case_id']))
+
+    try:
+        employee = Employee.objects.filter(profile__hr_id=doc['hr_id']).get()
+    except Employee.DoesNotExist:
+        raise RuntimeError('員工編號 %s 不存在' % doc['hr_id'])
+    except Employee.MultipleObjectsReturned:
+        raise RuntimeError('員工編號 %s 對應到超過一位員工' % doc['hr_id'])
+
+    try:
+        patient = Patient.objects.filter(extend__case_id=doc['case_id']).get()
+    except Patient.DoesNotExist:
+        raise RuntimeError('合約編號 %s 不存在' % doc['case_id'])
+    except Patient.MultipleObjectsReturned:
+        raise RuntimeError('合約編號 %s 對應到超過一個案例' % doc['case_id'])
+
+    if doc['type'] == '照護':
+        NursingSchedule(
+            patient=patient, employee=employee,
+            schedule=DateTimeTZRange(begin_at, end_at)
+        ).save()
+        return True
+    else:
+        raise RuntimeError('不認識的服務類別: %s' % doc['type'])
