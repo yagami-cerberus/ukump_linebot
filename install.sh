@@ -15,7 +15,7 @@ fi
 
 echo 安裝必要系統套件...
 sleep 0.5
-sudo apt-get -y install uwsgi python3-pip git libpq-dev python3-dev uwsgi-plugin-python3 node nodejs npm build-essential chrpath libssl-dev libxft-dev libfreetype6 libfreetype6-dev libfontconfig1 libfontconfig1-dev phantomjs
+sudo apt-get -y install uwsgi nginx python3-pip git libpq-dev python3-dev uwsgi-plugin-python3 node nodejs npm build-essential chrpath libssl-dev libxft-dev libfreetype6 libfreetype6-dev libfontconfig1 libfontconfig1-dev phantomjs
 if [ $? -ne 0 ]; then
     echo 無法安裝必要系統套件...
     exit 1
@@ -61,7 +61,7 @@ cat > /etc/uwsgi/apps-enabled/ukumpcore.xml <<- EOM
 
 <plugin>python3</plugin>
 <socket>/tmp/ukumpcore_socket</socket>
-<chdir>/var/repository/ukumpcore</chdir>
+<chdir>/var/repository/ukump_linebot</chdir>
 <module>ukumpcore.wsgi</module>
 <uid>postgres</uid>
 <gid>www-data</gid>
@@ -78,8 +78,8 @@ sleep 0.5
 cat > /etc/nginx/sites-enabled/ssl <<- EOM
 server {
   listen 443 default ssl;
-  ssl_certificate /etc/letsencrypt/live/neuron.fluxmach.com/fullchain.pem; # managed by Certbot
-  ssl_certificate_key /etc/letsencrypt/live/neuron.fluxmach.com/privkey.pem; # managed by Certbot
+  ssl_certificate /etc/ssl/nginx_fullchain.pem;
+  ssl_certificate_key /etc/ssl/nginx_privkey.pem;
 
   # server_name neuron.fluxmach.com;
 
@@ -117,3 +117,11 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+if [ -f /etc/ssl/nginx_fullchain.pem ]; then
+    echo ""
+else
+    openssl req -x509 -newkey rsa:4096 -nodes -keyout /etc/ssl/nginx_privkey.pem -out /etc/ssl/nginx_fullchain.pem -days 365 -subj "/C=US/ST=Denial/L=Springfield/O=Dis/CN=www.example.com"
+fi
+
+sudo /etc/init.d/uwsgi restart
+sudo /etc/init.d/nginx restart
