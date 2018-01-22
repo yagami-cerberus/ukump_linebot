@@ -15,7 +15,7 @@ fi
 
 echo 安裝必要系統套件...
 sleep 0.5
-sudo apt-get -y install uwsgi nginx python3-pip git libpq-dev python3-dev uwsgi-plugin-python3 node nodejs npm build-essential chrpath libssl-dev libxft-dev libfreetype6 libfreetype6-dev libfontconfig1 libfontconfig1-dev phantomjs
+sudo apt-get -y install uwsgi nginx python3-pip git libpq-dev python3-dev uwsgi-plugin-python3 npm build-essential chrpath libssl-dev libxft-dev libfreetype6 libfreetype6-dev libfontconfig1 libfontconfig1-dev phantomjs
 if [ $? -ne 0 ]; then
     echo 無法安裝必要系統套件...
     exit 1
