@@ -104,6 +104,11 @@ apt-get install postgresql
 
 echo "準備設定檔"
 cd /var/repository/ukump_linebot
+if [ -n /etc/ukump_linebot.secret ]; then
+    head -c 1024 < /dev/urandom > /etc/ukump_linebot.secret
+    rm /var/repository/ukump_linebot/ukumpcore/settings.py
+fi
+
 [ -f /var/repository/ukump_linebot/ukumpcore/settings.py ] && echo "設定檔已存在" || cp /var/repository/ukump_linebot/ukumpcore/settings.py.example /var/repository/ukump_linebot/ukumpcore/settings.py
 sudo -u postgres ./manage.py createcachetable
 if [ $? -ne 0 ]; then
